@@ -20,9 +20,11 @@
     "directories": {
       "output": "release"
     },
+    "afterSign": "scripts/afterSign.js",
     "mac": {
       "target": "dmg",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "identity": null
     },
     "win": {
       "target": "nsis",

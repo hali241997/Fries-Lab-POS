@@ -8,7 +8,10 @@ const isDev = process.env.NODE_ENV === 'development'
 // (electron-builder's productName would otherwise only apply post-packaging).
 app.setName('Fries Lab POS')
 
-const iconPath = path.join(__dirname, '..', 'build', 'icon.png')
+// Only meaningful in dev: a packaged build isn't shipped with build/icon.png
+// (electron-builder embeds build/icon.icns / icon.ico into the app itself,
+// so the OS picks up the icon automatically without any code needing this path).
+const iconPath = isDev ? path.join(__dirname, '..', 'build', 'icon.png') : undefined
 
 let store
 
@@ -16,7 +19,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: iconPath,
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -35,7 +38,7 @@ function createWindow() {
 app.whenReady().then(() => {
   // In dev (unpackaged), macOS shows Electron's default Dock icon unless set explicitly.
   // A packaged build picks up build/icon.icns automatically, so this only matters for `npm run electron:dev`.
-  if (process.platform === 'darwin' && app.dock) {
+  if (isDev && process.platform === 'darwin' && app.dock) {
     app.dock.setIcon(iconPath)
   }
 
