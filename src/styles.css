@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #ffe0b2;
+  border-radius: 10px;
+}
+
+body {
+  background: #fff3e0;
+}
+
+.tactile-btn {
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+.tactile-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(30, 41, 59, 0.15);
+}
+
+.item-card {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -12px rgba(29, 53, 87, 0.3);
+}
+
+.cart-row {
+  animation: rowIn 0.2s ease-out;
+}
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Receipt (hidden on screen, shown only when printing, 80mm thermal width) */
+#print-area {
+  display: none;
+}
+
+.receipt {
+  width: 80mm;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 12px;
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.receipt-table th,
+.receipt-table td {
+  text-align: left;
+  padding: 2px 0;
+}
+
+.receipt-table th:nth-child(2),
+.receipt-table td:nth-child(2),
+.receipt-table th:nth-child(3),
+.receipt-table td:nth-child(3) {
+  text-align: right;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+
+  #print-area {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+}

@@ -1,0 +1,32 @@
+import React from 'react'
+import { Minus, Plus } from 'lucide-react'
+import { formatMoney } from '../format.js'
+
+export default function ItemButton({ item, qty, onChangeQty }) {
+  return (
+    <div className="item-card bg-brand-card rounded-2xl p-4 flex flex-col shadow-pos border border-gray-50">
+      <div className="w-full h-20 rounded-xl bg-brand-cream flex items-center justify-center text-4xl mb-3">
+        {item.icon || '🍽️'}
+      </div>
+      <h3 className="font-display font-bold text-sm leading-tight mb-1 truncate" title={item.name}>
+        {item.name}
+      </h3>
+      <span className="font-extrabold text-lg text-brand-navy mb-3">{formatMoney(item.salePrice)}</span>
+      <div className="mt-auto flex items-center justify-between bg-brand-cream rounded-xl p-1.5">
+        <button
+          className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-brand-red font-bold tactile-btn"
+          onClick={() => onChangeQty(item, -1)}
+        >
+          <Minus size={14} />
+        </button>
+        <span className="font-extrabold text-sm w-6 text-center">{qty}</span>
+        <button
+          className="w-8 h-8 rounded-lg bg-brand-red text-white flex items-center justify-center tactile-btn"
+          onClick={() => onChangeQty(item, 1)}
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
