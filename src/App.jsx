@@ -4,17 +4,22 @@ import OrderScreen from "./pages/OrderScreen.jsx";
 import ManageMenu from "./pages/ManageMenu.jsx";
 import DailyReport from "./pages/DailyReport.jsx";
 import MonthlyReport from "./pages/MonthlyReport.jsx";
+import Bills from "./pages/Bills.jsx";
+import Receipt from "./components/Receipt.jsx";
+import BillModal from "./components/BillModal.jsx";
 
 const TABS = [
   { key: "order", label: "Order" },
   { key: "menu", label: "Manage Menu" },
   { key: "daily", label: "Daily Report" },
   { key: "monthly", label: "Monthly Report" },
+  { key: "bills", label: "Bills" },
 ];
 
 export default function App() {
   const [tab, setTab] = useState("order");
   const [menu, setMenu] = useState([]);
+  const [activeBill, setActiveBill] = useState(null);
 
   const reloadMenu = useCallback(() => {
     window.pos.getMenu().then(setMenu);
@@ -53,11 +58,17 @@ export default function App() {
       </header>
 
       <main className="flex-1 min-h-0 flex flex-col">
-        {tab === "order" && <OrderScreen menu={menu} />}
+        {tab === "order" && (
+          <OrderScreen menu={menu} onOrderComplete={setActiveBill} />
+        )}
         {tab === "menu" && <ManageMenu menu={menu} onMenuChange={setMenu} />}
         {tab === "daily" && <DailyReport />}
         {tab === "monthly" && <MonthlyReport />}
+        {tab === "bills" && <Bills onSelectBill={setActiveBill} />}
       </main>
+
+      <Receipt order={activeBill} />
+      <BillModal bill={activeBill} onClose={() => setActiveBill(null)} />
     </div>
   );
 }

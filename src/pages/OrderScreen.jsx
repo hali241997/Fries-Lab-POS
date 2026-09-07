@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import ItemButton from "../components/ItemButton.jsx";
 import CartPanel from "../components/CartPanel.jsx";
-import Receipt from "../components/Receipt.jsx";
 
 function makeOrderId() {
   return `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -22,10 +21,10 @@ function todayDisplayId() {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 }
 
-export default function OrderScreen({ menu }) {
+export default function OrderScreen({ menu, onOrderComplete }) {
   const [cart, setCart] = useState({});
   const [search, setSearch] = useState("");
-  const [lastOrder, setLastOrder] = useState(null);
+  const [lastOrderNo, setLastOrderNo] = useState(null);
   const [clock, setClock] = useState(new Date());
 
   useEffect(() => {
@@ -45,7 +44,6 @@ export default function OrderScreen({ menu }) {
         ...prev,
         [item.name]: {
           name: item.name,
-          icon: item.icon,
           costPrice: item.costPrice,
           salePrice: item.salePrice,
           quantity: nextQty,
@@ -91,12 +89,23 @@ export default function OrderScreen({ menu }) {
     ).size;
     const orderNo = `FL-${todayDisplayId()}-${String(todaysOrderCount + 1).padStart(3, "0")}`;
 
-    await window.pos.appendSale(rows);
+    const billRows = cartLines.map((l) => ({
+      billId: orderId,
+      orderNo,
+      dateTime,
+      itemName: l.name,
+      quantity: l.quantity,
+      salePrice: l.salePrice,
+      lineTotal: l.quantity * l.salePrice,
+    }));
 
-    setLastOrder({ orderNo, dateTime, lines: cartLines, total });
+    await window.pos.appendSale(rows);
+    await window.pos.appendBill(billRows);
+
+    setLastOrderNo(orderNo);
     setCart({});
 
-    setTimeout(() => window.print(), 100);
+    onOrderComplete({ orderNo, dateTime, lines: cartLines, total });
   }
 
   return (
@@ -157,12 +166,10 @@ export default function OrderScreen({ menu }) {
 
       <CartPanel
         cart={cartLines}
-        orderNo={lastOrder?.orderNo}
+        orderNo={lastOrderNo}
         onChangeQty={changeQty}
         onComplete={completeOrder}
       />
-
-      <Receipt order={lastOrder} />
     </div>
   );
 }

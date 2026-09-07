@@ -31,7 +31,6 @@ export default function CartPanel({ cart, orderNo, onChangeQty, onComplete }) {
         ) : (
           cart.map((line) => (
             <div key={line.name} className="cart-row flex items-center gap-3 bg-brand-cream rounded-2xl p-3">
-              <span className="text-2xl">{line.icon || '🍽️'}</span>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm truncate">{line.name}</p>
                 <p className="text-xs font-bold text-brand-navy">

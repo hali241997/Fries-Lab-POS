@@ -2,8 +2,9 @@ const fs = require('fs')
 const path = require('path')
 const Papa = require('papaparse')
 
-const MENU_COLUMNS = ['name', 'costPrice', 'salePrice', 'icon']
+const MENU_COLUMNS = ['name', 'costPrice', 'salePrice']
 const SALES_COLUMNS = ['orderId', 'dateTime', 'itemName', 'quantity', 'costPrice', 'salePrice', 'lineProfit']
+const BILLS_COLUMNS = ['billId', 'orderNo', 'dateTime', 'itemName', 'quantity', 'salePrice', 'lineTotal']
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) {
@@ -49,6 +50,23 @@ function appendCsv(filePath, rows, columns) {
   }
 }
 
+// Splits rows across per-month files based on each row's own dateTime, then
+// appends each group to its month's file. Shared by appendSale/appendBill.
+function appendGroupedByMonth(rows, pathForMonth, columns) {
+  if (!rows.length) return
+  const grouped = new Map()
+  for (const row of rows) {
+    const d = new Date(row.dateTime)
+    const key = `${d.getFullYear()}_${d.getMonth() + 1}`
+    if (!grouped.has(key)) grouped.set(key, [])
+    grouped.get(key).push(row)
+  }
+  for (const [key, groupRows] of grouped) {
+    const [year, month] = key.split('_').map(Number)
+    appendCsv(pathForMonth(year, month), groupRows, columns)
+  }
+}
+
 class CsvStore {
   constructor(dataDir) {
     this.dataDir = dataDir
@@ -61,12 +79,16 @@ class CsvStore {
     return path.join(this.dataDir, `sales_log_${year}_${mm}.csv`)
   }
 
+  billsLogPath(year, month) {
+    const mm = String(month).padStart(2, '0')
+    return path.join(this.dataDir, `bills_${year}_${mm}.csv`)
+  }
+
   getMenu() {
     return readCsv(this.menuPath, MENU_COLUMNS).map((r) => ({
       name: r.name,
       costPrice: Number(r.costPrice),
-      salePrice: Number(r.salePrice),
-      icon: r.icon || ''
+      salePrice: Number(r.salePrice)
     }))
   }
 
@@ -74,26 +96,14 @@ class CsvStore {
     const rows = items.map((i) => ({
       name: i.name,
       costPrice: i.costPrice,
-      salePrice: i.salePrice,
-      icon: i.icon || ''
+      salePrice: i.salePrice
     }))
     writeCsv(this.menuPath, rows, MENU_COLUMNS)
     return this.getMenu()
   }
 
   appendSale(rows) {
-    if (!rows.length) return
-    const grouped = new Map()
-    for (const row of rows) {
-      const d = new Date(row.dateTime)
-      const key = `${d.getFullYear()}_${d.getMonth() + 1}`
-      if (!grouped.has(key)) grouped.set(key, [])
-      grouped.get(key).push(row)
-    }
-    for (const [key, groupRows] of grouped) {
-      const [year, month] = key.split('_').map(Number)
-      appendCsv(this.salesLogPath(year, month), groupRows, SALES_COLUMNS)
-    }
+    appendGroupedByMonth(rows, (year, month) => this.salesLogPath(year, month), SALES_COLUMNS)
   }
 
   getSalesForMonth(year, month) {
@@ -105,6 +115,22 @@ class CsvStore {
       costPrice: Number(r.costPrice),
       salePrice: Number(r.salePrice),
       lineProfit: Number(r.lineProfit)
+    }))
+  }
+
+  appendBill(rows) {
+    appendGroupedByMonth(rows, (year, month) => this.billsLogPath(year, month), BILLS_COLUMNS)
+  }
+
+  getBillsForMonth(year, month) {
+    return readCsv(this.billsLogPath(year, month), BILLS_COLUMNS).map((r) => ({
+      billId: r.billId,
+      orderNo: r.orderNo,
+      dateTime: r.dateTime,
+      itemName: r.itemName,
+      quantity: Number(r.quantity),
+      salePrice: Number(r.salePrice),
+      lineTotal: Number(r.lineTotal)
     }))
   }
 }

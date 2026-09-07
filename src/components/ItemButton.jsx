@@ -5,9 +5,6 @@ import { formatMoney } from '../format.js'
 export default function ItemButton({ item, qty, onChangeQty }) {
   return (
     <div className="item-card bg-brand-card rounded-2xl p-4 flex flex-col shadow-pos border border-gray-50">
-      <div className="w-full h-20 rounded-xl bg-brand-cream flex items-center justify-center text-4xl mb-3">
-        {item.icon || '🍽️'}
-      </div>
       <h3 className="font-display font-bold text-sm leading-tight mb-1 truncate" title={item.name}>
         {item.name}
       </h3>

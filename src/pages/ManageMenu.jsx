@@ -102,12 +102,7 @@ export default function ManageMenu({ menu, onMenuChange }) {
             {menu.map((item) => (
               <tr key={item.name} className="hover:bg-brand-cream/40">
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-xl bg-brand-cream flex items-center justify-center text-xl">
-                      {item.icon || '🍽️'}
-                    </span>
-                    <span className="font-bold text-sm">{item.name}</span>
-                  </div>
+                  <span className="font-bold text-sm">{item.name}</span>
                 </td>
                 <td className="px-6 py-4 text-right font-semibold text-brand-muted">{formatMoney(item.costPrice)}</td>
                 <td className="px-6 py-4 text-right font-bold text-brand-navy">{formatMoney(item.salePrice)}</td>
