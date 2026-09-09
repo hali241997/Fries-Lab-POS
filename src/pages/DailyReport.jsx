@@ -17,7 +17,7 @@ export default function DailyReport() {
   useEffect(() => {
     const [year, month] = date.split('-').map(Number)
     window.pos.getSalesForMonth(year, month).then((sales) => {
-      const dayRows = sales.filter((s) => s.dateTime.slice(0, 10) === date)
+      const dayRows = sales.filter((s) => !s.voided && s.dateTime.slice(0, 10) === date)
       setRows(dayRows)
     })
   }, [date])

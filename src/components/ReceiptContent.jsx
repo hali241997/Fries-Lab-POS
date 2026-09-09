@@ -2,7 +2,7 @@ import React from 'react'
 import { formatMoney } from '../format.js'
 
 export default function ReceiptContent({ order }) {
-  const { orderNo, dateTime, lines, total } = order
+  const { orderNo, dateTime, customerName, lines, total } = order
   const dt = new Date(dateTime)
 
   return (
@@ -10,6 +10,7 @@ export default function ReceiptContent({ order }) {
       <h2 className="font-display text-center m-0 mb-1 text-lg">Fries Lab</h2>
       <p className="text-center text-[11px] m-0 mb-2">Receipt</p>
       <p className="text-[11px] m-0">Order #{orderNo}</p>
+      {customerName && <p className="text-[11px] m-0">For: {customerName}</p>}
       <p className="text-[11px] m-0 mb-2">
         Date:{' '}
         {dt.toLocaleString([], {

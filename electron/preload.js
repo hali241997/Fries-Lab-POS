@@ -6,5 +6,7 @@ contextBridge.exposeInMainWorld('pos', {
   appendSale: (rows) => ipcRenderer.invoke('pos:appendSale', rows),
   getSalesForMonth: (year, month) => ipcRenderer.invoke('pos:getSalesForMonth', { year, month }),
   appendBill: (rows) => ipcRenderer.invoke('pos:appendBill', rows),
-  getBillsForMonth: (year, month) => ipcRenderer.invoke('pos:getBillsForMonth', { year, month })
+  getBillsForMonth: (year, month) => ipcRenderer.invoke('pos:getBillsForMonth', { year, month }),
+  voidBill: (billId, reason) => ipcRenderer.invoke('pos:voidBill', { billId, reason }),
+  searchBillsByName: (query) => ipcRenderer.invoke('pos:searchBillsByName', query)
 })

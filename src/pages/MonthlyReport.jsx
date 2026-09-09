@@ -13,7 +13,7 @@ export default function MonthlyReport() {
 
   useEffect(() => {
     const [year, m] = month.split('-').map(Number)
-    window.pos.getSalesForMonth(year, m).then(setRows)
+    window.pos.getSalesForMonth(year, m).then((sales) => setRows(sales.filter((s) => !s.voided)))
   }, [month])
 
   const byItem = new Map()

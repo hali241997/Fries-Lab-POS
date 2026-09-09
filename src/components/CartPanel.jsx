@@ -2,7 +2,15 @@ import React from 'react'
 import { CheckCircle2, Minus, Plus, ShoppingCart } from 'lucide-react'
 import { formatMoney } from '../format.js'
 
-export default function CartPanel({ cart, orderNo, onChangeQty, onComplete }) {
+export default function CartPanel({
+  cart,
+  orderNo,
+  onChangeQty,
+  onComplete,
+  customerName,
+  onCustomerNameChange,
+  canComplete
+}) {
   const total = cart.reduce((sum, line) => sum + line.quantity * line.salePrice, 0)
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0)
 
@@ -13,7 +21,14 @@ export default function CartPanel({ cart, orderNo, onChangeQty, onComplete }) {
           <h2 className="font-display font-bold text-xl text-brand-navy">Current Order</h2>
           {orderNo && <span className="text-xs font-bold text-brand-muted">{orderNo}</span>}
         </div>
-        <p className="text-xs font-semibold text-brand-muted mt-1">{itemCount} items in cart</p>
+        <p className="text-xs font-semibold text-brand-muted mt-1 mb-3">{itemCount} items in cart</p>
+        <input
+          type="text"
+          value={customerName}
+          onChange={(e) => onCustomerNameChange(e.target.value)}
+          placeholder="Customer Name"
+          className="w-full px-4 py-2.5 rounded-xl bg-brand-cream/60 border border-gray-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-red/30"
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
@@ -66,7 +81,7 @@ export default function CartPanel({ cart, orderNo, onChangeQty, onComplete }) {
           <span>{formatMoney(total)}</span>
         </div>
         <button
-          disabled={cart.length === 0}
+          disabled={!canComplete}
           onClick={onComplete}
           className="tactile-btn w-full py-4 rounded-2xl bg-brand-teal disabled:bg-gray-200 disabled:text-gray-400 text-white font-display font-bold text-lg tracking-wide shadow-pos flex items-center justify-center gap-3"
         >

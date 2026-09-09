@@ -20,6 +20,7 @@ export default function App() {
   const [tab, setTab] = useState("order");
   const [menu, setMenu] = useState([]);
   const [activeBill, setActiveBill] = useState(null);
+  const [billsRefreshKey, setBillsRefreshKey] = useState(0);
 
   const reloadMenu = useCallback(() => {
     window.pos.getMenu().then(setMenu);
@@ -28,6 +29,11 @@ export default function App() {
   useEffect(() => {
     reloadMenu();
   }, [reloadMenu]);
+
+  function handleBillChanged(nextBill) {
+    setActiveBill(nextBill);
+    setBillsRefreshKey((k) => k + 1);
+  }
 
   return (
     <div className="bg-brand-cream text-brand-ink h-screen w-full overflow-hidden flex flex-col font-sans">
@@ -64,11 +70,18 @@ export default function App() {
         {tab === "menu" && <ManageMenu menu={menu} onMenuChange={setMenu} />}
         {tab === "daily" && <DailyReport />}
         {tab === "monthly" && <MonthlyReport />}
-        {tab === "bills" && <Bills onSelectBill={setActiveBill} />}
+        {tab === "bills" && (
+          <Bills onSelectBill={setActiveBill} refreshKey={billsRefreshKey} />
+        )}
       </main>
 
       <Receipt order={activeBill} />
-      <BillModal bill={activeBill} onClose={() => setActiveBill(null)} />
+      <BillModal
+        bill={activeBill}
+        menu={menu}
+        onClose={() => setActiveBill(null)}
+        onChanged={handleBillChanged}
+      />
     </div>
   );
 }

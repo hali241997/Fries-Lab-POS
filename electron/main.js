@@ -50,6 +50,8 @@ app.whenReady().then(() => {
   ipcMain.handle('pos:getSalesForMonth', (_event, { year, month }) => store.getSalesForMonth(year, month))
   ipcMain.handle('pos:appendBill', (_event, rows) => store.appendBill(rows))
   ipcMain.handle('pos:getBillsForMonth', (_event, { year, month }) => store.getBillsForMonth(year, month))
+  ipcMain.handle('pos:voidBill', (_event, { billId, reason }) => store.voidBill(billId, reason))
+  ipcMain.handle('pos:searchBillsByName', (_event, query) => store.searchBillsByName(query))
 
   createWindow()
 

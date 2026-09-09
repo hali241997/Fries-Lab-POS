@@ -2,10 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import ItemButton from "../components/ItemButton.jsx";
 import CartPanel from "../components/CartPanel.jsx";
-
-function makeOrderId() {
-  return `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-}
+import { makeOrderId } from "../idUtils.js";
 
 // Local (not UTC) timestamp string, so the shop's calendar day/month is used
 // for the sales log filename and Daily/Monthly report filtering.
@@ -24,6 +21,7 @@ function todayDisplayId() {
 export default function OrderScreen({ menu, onOrderComplete }) {
   const [cart, setCart] = useState({});
   const [search, setSearch] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [lastOrderNo, setLastOrderNo] = useState(null);
   const [clock, setClock] = useState(new Date());
 
@@ -57,8 +55,11 @@ export default function OrderScreen({ menu, onOrderComplete }) {
     item.name.toLowerCase().includes(search.toLowerCase()),
   );
 
+  const trimmedName = customerName.trim();
+  const canComplete = cartLines.length > 0 && trimmedName.length > 0;
+
   async function completeOrder() {
-    if (cartLines.length === 0) return;
+    if (!canComplete) return;
 
     const orderId = makeOrderId();
     const dateTime = localDateTime();
@@ -93,6 +94,7 @@ export default function OrderScreen({ menu, onOrderComplete }) {
       billId: orderId,
       orderNo,
       dateTime,
+      customerName: trimmedName,
       itemName: l.name,
       quantity: l.quantity,
       salePrice: l.salePrice,
@@ -104,8 +106,16 @@ export default function OrderScreen({ menu, onOrderComplete }) {
 
     setLastOrderNo(orderNo);
     setCart({});
+    setCustomerName("");
 
-    onOrderComplete({ orderNo, dateTime, lines: cartLines, total });
+    onOrderComplete({
+      billId: orderId,
+      orderNo,
+      dateTime,
+      customerName: trimmedName,
+      lines: cartLines,
+      total,
+    });
   }
 
   return (
@@ -169,6 +179,9 @@ export default function OrderScreen({ menu, onOrderComplete }) {
         orderNo={lastOrderNo}
         onChangeQty={changeQty}
         onComplete={completeOrder}
+        customerName={customerName}
+        onCustomerNameChange={setCustomerName}
+        canComplete={canComplete}
       />
     </div>
   );
