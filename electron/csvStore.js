@@ -42,8 +42,33 @@ function writeCsv(filePath, rows, columns) {
   fs.writeFileSync(filePath, csv, 'utf8')
 }
 
+// If a schema (columns list) changes after a file was already created, its on-disk
+// header stays frozen at whatever it was when first written. Blindly appending
+// new-schema rows onto that stale header silently misaligns every field (Papa.parse
+// maps by position against the *old* header), corrupting data with no error - e.g.
+// a `quantity` column that actually holds an item name, reading back as NaN. This
+// makes sure the file's header always matches the current schema before any append,
+// migrating existing rows onto the new column set (missing fields default to '').
+function migrateHeaderIfNeeded(filePath, columns) {
+  if (!fs.existsSync(filePath)) return
+  const raw = fs.readFileSync(filePath, 'utf8')
+  const firstLine = raw.split('\n')[0] || ''
+  const existingCols = firstLine.split(',').map((s) => s.trim())
+  const upToDate = existingCols.length === columns.length && existingCols.every((c, i) => c === columns[i])
+  if (upToDate) return
+
+  const existingRows = readCsv(filePath, columns)
+  const migrated = existingRows.map((r) => {
+    const clean = {}
+    for (const c of columns) clean[c] = r[c] === undefined ? '' : r[c]
+    return clean
+  })
+  writeCsv(filePath, migrated, columns)
+}
+
 function appendCsv(filePath, rows, columns) {
   if (!rows.length) return
+  migrateHeaderIfNeeded(filePath, columns)
   const body = serializeRows(rows, columns)
   if (!fs.existsSync(filePath)) {
     fs.writeFileSync(filePath, columns.join(',') + '\n' + body, 'utf8')
