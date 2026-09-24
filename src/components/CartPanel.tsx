@@ -1,6 +1,16 @@
-import React from 'react'
-import { CheckCircle2, Minus, Plus, ShoppingCart } from 'lucide-react'
-import { formatMoney } from '../format.js'
+import { CheckCircle2, Minus, Plus, ShoppingCart } from "lucide-react";
+import { formatMoney } from "../format";
+import type { CartLine } from "../../shared/contracts";
+
+interface CartPanelProps {
+  cart: CartLine[];
+  orderNo: string | null;
+  onChangeQty: (item: CartLine, delta: number) => void;
+  onComplete: () => void | Promise<void>;
+  customerName: string;
+  onCustomerNameChange: (value: string) => void;
+  canComplete: boolean;
+}
 
 export default function CartPanel({
   cart,
@@ -9,19 +19,30 @@ export default function CartPanel({
   onComplete,
   customerName,
   onCustomerNameChange,
-  canComplete
-}) {
-  const total = cart.reduce((sum, line) => sum + line.quantity * line.salePrice, 0)
-  const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0)
+  canComplete,
+}: CartPanelProps) {
+  const total = cart.reduce(
+    (sum, line) => sum + line.quantity * line.salePrice,
+    0,
+  );
+  const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
     <aside className="w-[340px] bg-white border-l border-gray-100 flex flex-col shrink-0 z-20 shadow-[-8px_0_30px_-15px_rgba(0,0,0,0.08)]">
       <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
         <div className="flex items-center justify-between">
-          <h2 className="font-display font-bold text-xl text-brand-navy">Current Order</h2>
-          {orderNo && <span className="text-xs font-bold text-brand-muted">{orderNo}</span>}
+          <h2 className="font-display font-bold text-xl text-brand-navy">
+            Current Order
+          </h2>
+          {orderNo && (
+            <span className="text-xs font-bold text-brand-muted">
+              {orderNo}
+            </span>
+          )}
         </div>
-        <p className="text-xs font-semibold text-brand-muted mt-1 mb-3">{itemCount} items in cart</p>
+        <p className="text-xs font-semibold text-brand-muted mt-1 mb-3">
+          {itemCount} items in cart
+        </p>
         <input
           type="text"
           value={customerName}
@@ -45,7 +66,10 @@ export default function CartPanel({
           </div>
         ) : (
           cart.map((line) => (
-            <div key={line.name} className="cart-row flex items-center gap-3 bg-brand-cream rounded-2xl p-3">
+            <div
+              key={line.name}
+              className="cart-row flex items-center gap-3 bg-brand-cream rounded-2xl p-3"
+            >
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm truncate">{line.name}</p>
                 <p className="text-xs font-bold text-brand-navy">
@@ -59,7 +83,9 @@ export default function CartPanel({
                 >
                   <Minus size={12} />
                 </button>
-                <span className="w-6 text-center font-extrabold text-sm">{line.quantity}</span>
+                <span className="w-6 text-center font-extrabold text-sm">
+                  {line.quantity}
+                </span>
                 <button
                   className="w-7 h-7 rounded-lg bg-brand-red text-white flex items-center justify-center tactile-btn"
                   onClick={() => onChangeQty(line, 1)}
@@ -89,5 +115,5 @@ export default function CartPanel({
         </button>
       </div>
     </aside>
-  )
+  );
 }

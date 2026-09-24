@@ -1,28 +1,43 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
-import ItemButton from "../components/ItemButton.jsx";
-import CartPanel from "../components/CartPanel.jsx";
-import { makeOrderId } from "../idUtils.js";
+import ItemButton from "../components/ItemButton";
+import CartPanel from "../components/CartPanel";
+import { makeOrderId } from "../idUtils";
+import type {
+  BillRow,
+  CartLine,
+  CompletedOrder,
+  MenuItem,
+  SaleRow,
+} from "../../shared/contracts";
 
 // Local (not UTC) timestamp string, so the shop's calendar day/month is used
 // for the sales log filename and Daily/Monthly report filtering.
-function localDateTime() {
+function localDateTime(): string {
   const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
+  const pad = (n: number): string => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function todayDisplayId() {
+function todayDisplayId(): string {
   const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
+  const pad = (n: number): string => String(n).padStart(2, "0");
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 }
 
-export default function OrderScreen({ menu, onOrderComplete }) {
-  const [cart, setCart] = useState({});
+interface OrderScreenProps {
+  menu: MenuItem[];
+  onOrderComplete: (order: CompletedOrder) => void;
+}
+
+export default function OrderScreen({
+  menu,
+  onOrderComplete,
+}: OrderScreenProps) {
+  const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [search, setSearch] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [lastOrderNo, setLastOrderNo] = useState(null);
+  const [lastOrderNo, setLastOrderNo] = useState<string | null>(null);
   const [clock, setClock] = useState(new Date());
 
   useEffect(() => {
@@ -30,7 +45,7 @@ export default function OrderScreen({ menu, onOrderComplete }) {
     return () => clearInterval(id);
   }, []);
 
-  function changeQty(item, delta) {
+  function changeQty(item: MenuItem, delta: number) {
     setCart((prev) => {
       const existingQty = prev[item.name]?.quantity || 0;
       const nextQty = existingQty + delta;
@@ -68,7 +83,7 @@ export default function OrderScreen({ menu, onOrderComplete }) {
       0,
     );
 
-    const rows = cartLines.map((l) => ({
+    const rows: SaleRow[] = cartLines.map((l) => ({
       orderId,
       dateTime,
       itemName: l.name,
@@ -90,7 +105,7 @@ export default function OrderScreen({ menu, onOrderComplete }) {
     ).size;
     const orderNo = `FL-${todayDisplayId()}-${String(todaysOrderCount + 1).padStart(3, "0")}`;
 
-    const billRows = cartLines.map((l) => ({
+    const billRows: BillRow[] = cartLines.map((l) => ({
       billId: orderId,
       orderNo,
       dateTime,

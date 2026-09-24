@@ -1,6 +1,6 @@
-const { execFileSync } = require('child_process')
-const path = require('path')
-const fs = require('fs')
+const { execFileSync } = require("child_process")
+const path = require("path")
+const fs = require("fs")
 
 // electron-builder's mac build, without a real Apple Developer ID, leaves the
 // downloaded Electron binary's original (and often invalid/unsealed) ad-hoc
@@ -10,12 +10,12 @@ const fs = require('fs')
 // another machine. Re-signing fresh here regenerates a valid seal that
 // matches the app's actual final contents.
 module.exports = async function afterSign(context) {
-  if (context.electronPlatformName !== 'darwin') return
+  if (context.electronPlatformName !== "darwin") return
 
   const appName = context.packager.appInfo.productFilename
   const appPath = path.join(context.appOutDir, `${appName}.app`)
 
   if (!fs.existsSync(appPath)) return
 
-  execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath])
+  execFileSync("codesign", ["--force", "--deep", "--sign", "-", appPath])
 }

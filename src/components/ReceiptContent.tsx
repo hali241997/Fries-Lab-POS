@@ -1,9 +1,13 @@
-import React from 'react'
-import { formatMoney } from '../format.js'
+import { formatMoney } from "../format";
+import type { Bill } from "../../shared/contracts";
 
-export default function ReceiptContent({ order }) {
-  const { orderNo, dateTime, customerName, lines, total } = order
-  const dt = new Date(dateTime)
+interface ReceiptContentProps {
+  order: Bill;
+}
+
+export default function ReceiptContent({ order }: ReceiptContentProps) {
+  const { orderNo, dateTime, customerName, lines, total } = order;
+  const dt = new Date(dateTime);
 
   return (
     <div className="receipt">
@@ -12,14 +16,14 @@ export default function ReceiptContent({ order }) {
       <p className="text-[11px] m-0">Order #{orderNo}</p>
       {customerName && <p className="text-[11px] m-0">For: {customerName}</p>}
       <p className="text-[11px] m-0 mb-2">
-        Date:{' '}
+        Date:{" "}
         {dt.toLocaleString([], {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
         })}
       </p>
       <hr />
@@ -48,5 +52,5 @@ export default function ReceiptContent({ order }) {
       </p>
       <p className="text-center text-[11px] mt-3">Thank you for visiting!</p>
     </div>
-  )
+  );
 }

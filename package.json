@@ -2,20 +2,26 @@
   "name": "fries-lab-pos",
   "version": "1.0.0",
   "description": "Fries Lab POS - offline desktop billing app",
-  "main": "electron/main.js",
+  "main": ".electron-dist/electron/main.js",
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env NODE_ENV=development electron .\"",
-    "electron:build": "vite build && electron-builder"
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "npm run lint -- --fix",
+    "typecheck": "tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "build:electron:dev": "tsc -p tsconfig.electron.json",
+    "build:electron": "tsc -p tsconfig.electron.json --sourceMap false",
+    "build": "npm run lint && npm run typecheck && vite build && npm run build:electron",
+    "electron:dev": "npm run build:electron:dev && concurrently -k \"vite\" \"tsc -p tsconfig.electron.json --watch --preserveWatchOutput\" \"wait-on tcp:5173 .electron-dist/electron/main.js && cross-env NODE_ENV=development electron .\"",
+    "electron:build": "npm run build && electron-builder"
   },
   "build": {
     "appId": "com.frieslab.pos",
     "productName": "Fries Lab POS",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      ".electron-dist/**/*",
+      "!.electron-dist/**/*.map"
     ],
     "directories": {
       "output": "release"
@@ -39,14 +45,26 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^20.19.43",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.5.5",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^33.4.11",
     "electron-builder": "^24.13.3",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.12.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^3.4.19",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1",
     "vite": "^5.4.1",
     "wait-on": "^7.2.0"
   }

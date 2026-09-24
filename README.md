@@ -15,7 +15,7 @@ Files:
 
 ## Tech stack
 
-React + Electron, styled with Tailwind CSS (brand colors/fonts configured in `tailwind.config.js`), charts via `recharts` (donut chart on Daily Report, bar chart on Monthly Report), icons via `lucide-react`. Everything is bundled at build time — no CDN dependency, so the app works fully offline except for optionally loading the Google Fonts used for headings (falls back to system fonts without internet).
+TypeScript + React + Electron, styled with Tailwind CSS (brand colors/fonts configured in `tailwind.config.js`), charts via `recharts` (donut chart on Daily Report, bar chart on Monthly Report), icons via `lucide-react`. Everything is bundled at build time — no CDN dependency, so the app works fully offline except for optionally loading the Google Fonts used for headings (falls back to system fonts without internet).
 
 ## Development
 

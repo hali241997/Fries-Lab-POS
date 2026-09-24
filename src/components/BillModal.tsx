@@ -1,83 +1,127 @@
-import React, { useEffect, useState } from 'react'
-import { Minus, Pencil, Plus, Printer, Trash2, X } from 'lucide-react'
-import ReceiptContent from './ReceiptContent.jsx'
-import { formatMoney } from '../format.js'
-import { makeOrderId } from '../idUtils.js'
+import { useEffect, useState } from "react";
+import { Minus, Pencil, Plus, Printer, Trash2, X } from "lucide-react";
+import ReceiptContent from "./ReceiptContent";
+import { formatMoney } from "../format";
+import { makeOrderId } from "../idUtils";
+import type { Bill, MenuItem } from "../../shared/contracts";
 
-export default function BillModal({ bill, menu, onClose, onChanged }) {
-  const [mode, setMode] = useState('view')
-  const [confirmingCancel, setConfirmingCancel] = useState(false)
-  const [editLines, setEditLines] = useState([])
-  const [editCustomerName, setEditCustomerName] = useState('')
-  const [selectedAddItem, setSelectedAddItem] = useState('')
-  const [saving, setSaving] = useState(false)
+interface EditLine {
+  name: string;
+  quantity: number;
+  salePrice: number;
+  costPrice: number;
+}
+
+interface BillModalProps {
+  bill: Bill | null;
+  menu: MenuItem[];
+  onClose: () => void;
+  onChanged: (bill: Bill | null) => void;
+}
+
+export default function BillModal({
+  bill,
+  menu,
+  onClose,
+  onChanged,
+}: BillModalProps) {
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [editLines, setEditLines] = useState<EditLine[]>([]);
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [selectedAddItem, setSelectedAddItem] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setMode('view')
-    setConfirmingCancel(false)
-    setSelectedAddItem('')
-  }, [bill?.billId])
+    setMode("view");
+    setConfirmingCancel(false);
+    setSelectedAddItem("");
+  }, [bill?.billId]);
 
-  if (!bill) return null
+  if (!bill) return null;
+  const activeBill = bill;
 
   async function openEditMode() {
-    const dt = new Date(bill.dateTime)
-    const sales = await window.pos.getSalesForMonth(dt.getFullYear(), dt.getMonth() + 1)
-    const costMap = new Map()
+    const dt = new Date(activeBill.dateTime);
+    const sales = await window.pos.getSalesForMonth(
+      dt.getFullYear(),
+      dt.getMonth() + 1,
+    );
+    const costMap = new Map<string, number>();
     for (const s of sales) {
-      if (s.orderId === bill.billId) costMap.set(s.itemName, s.costPrice)
+      if (s.orderId === activeBill.billId) costMap.set(s.itemName, s.costPrice);
     }
     setEditLines(
-      bill.lines.map((l) => ({
+      activeBill.lines.map((l) => ({
         name: l.name,
         quantity: l.quantity,
         salePrice: l.salePrice,
-        costPrice: costMap.has(l.name) ? costMap.get(l.name) : menu.find((m) => m.name === l.name)?.costPrice ?? 0
-      }))
-    )
-    setEditCustomerName(bill.customerName || '')
-    setMode('edit')
+        costPrice:
+          costMap.get(l.name) ??
+          menu.find((m) => m.name === l.name)?.costPrice ??
+          0,
+      })),
+    );
+    setEditCustomerName(activeBill.customerName || "");
+    setMode("edit");
   }
 
-  function adjustEditQty(name, delta) {
+  function adjustEditQty(name: string, delta: number) {
     setEditLines((prev) =>
-      prev.map((l) => (l.name === name ? { ...l, quantity: l.quantity + delta } : l)).filter((l) => l.quantity > 0)
-    )
+      prev
+        .map((l) =>
+          l.name === name ? { ...l, quantity: l.quantity + delta } : l,
+        )
+        .filter((l) => l.quantity > 0),
+    );
   }
 
-  function removeEditLine(name) {
-    setEditLines((prev) => prev.filter((l) => l.name !== name))
+  function removeEditLine(name: string) {
+    setEditLines((prev) => prev.filter((l) => l.name !== name));
   }
 
   function addSelectedItem() {
-    const menuItem = menu.find((m) => m.name === selectedAddItem)
-    if (!menuItem) return
+    const menuItem = menu.find((m) => m.name === selectedAddItem);
+    if (!menuItem) return;
     setEditLines((prev) => {
-      const existing = prev.find((l) => l.name === menuItem.name)
+      const existing = prev.find((l) => l.name === menuItem.name);
       if (existing) {
-        return prev.map((l) => (l.name === menuItem.name ? { ...l, quantity: l.quantity + 1 } : l))
+        return prev.map((l) =>
+          l.name === menuItem.name ? { ...l, quantity: l.quantity + 1 } : l,
+        );
       }
-      return [...prev, { name: menuItem.name, quantity: 1, salePrice: menuItem.salePrice, costPrice: menuItem.costPrice }]
-    })
-    setSelectedAddItem('')
+      return [
+        ...prev,
+        {
+          name: menuItem.name,
+          quantity: 1,
+          salePrice: menuItem.salePrice,
+          costPrice: menuItem.costPrice,
+        },
+      ];
+    });
+    setSelectedAddItem("");
   }
 
   async function confirmCancel() {
-    await window.pos.voidBill(bill.billId, 'cancelled')
-    setConfirmingCancel(false)
-    onChanged(null)
+    await window.pos.voidBill(activeBill.billId, "cancelled");
+    setConfirmingCancel(false);
+    onChanged(null);
   }
 
   async function saveEdit() {
-    const name = editCustomerName.trim()
-    if (!name || editLines.length === 0 || saving) return
-    setSaving(true)
+    const name = editCustomerName.trim();
+    if (!name || editLines.length === 0 || saving) return;
+    setSaving(true);
     try {
-      await window.pos.voidBill(bill.billId, 'edited')
+      await window.pos.voidBill(activeBill.billId, "edited");
 
-      const newBillId = makeOrderId()
-      const dateTime = bill.dateTime
-      const total = editLines.reduce((sum, l) => sum + l.quantity * l.salePrice, 0)
+      const newBillId = makeOrderId();
+      const dateTime = activeBill.dateTime;
+      const total = editLines.reduce(
+        (sum, l) => sum + l.quantity * l.salePrice,
+        0,
+      );
 
       const salesRows = editLines.map((l) => ({
         orderId: newBillId,
@@ -86,48 +130,61 @@ export default function BillModal({ bill, menu, onClose, onChanged }) {
         quantity: l.quantity,
         costPrice: l.costPrice,
         salePrice: l.salePrice,
-        lineProfit: l.quantity * (l.salePrice - l.costPrice)
-      }))
+        lineProfit: l.quantity * (l.salePrice - l.costPrice),
+      }));
       const billRows = editLines.map((l) => ({
         billId: newBillId,
-        orderNo: bill.orderNo,
+        orderNo: activeBill.orderNo,
         dateTime,
         customerName: name,
         itemName: l.name,
         quantity: l.quantity,
         salePrice: l.salePrice,
-        lineTotal: l.quantity * l.salePrice
-      }))
+        lineTotal: l.quantity * l.salePrice,
+      }));
 
-      await window.pos.appendSale(salesRows)
-      await window.pos.appendBill(billRows)
+      await window.pos.appendSale(salesRows);
+      await window.pos.appendBill(billRows);
 
       onChanged({
         billId: newBillId,
-        orderNo: bill.orderNo,
+        orderNo: activeBill.orderNo,
         dateTime,
         customerName: name,
-        lines: editLines.map((l) => ({ name: l.name, quantity: l.quantity, salePrice: l.salePrice })),
-        total
-      })
+        lines: editLines.map((l) => ({
+          name: l.name,
+          quantity: l.quantity,
+          salePrice: l.salePrice,
+        })),
+        total,
+      });
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
-  const editTotal = editLines.reduce((sum, l) => sum + l.quantity * l.salePrice, 0)
-  const availableToAdd = menu.filter((m) => !editLines.some((l) => l.name === m.name))
-  const canSaveEdit = editLines.length > 0 && editCustomerName.trim().length > 0 && !saving
+  const editTotal = editLines.reduce(
+    (sum, l) => sum + l.quantity * l.salePrice,
+    0,
+  );
+  const availableToAdd = menu.filter(
+    (m) => !editLines.some((l) => l.name === m.name),
+  );
+  const canSaveEdit =
+    editLines.length > 0 && editCustomerName.trim().length > 0 && !saving;
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       <div
-        className={`bg-white rounded-3xl shadow-xl w-full p-7 ${mode === 'edit' ? 'max-w-xl' : 'max-w-md'}`}
+        className={`bg-white rounded-3xl shadow-xl w-full p-7 ${mode === "edit" ? "max-w-xl" : "max-w-md"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-display font-bold text-xl text-brand-navy">
-            {mode === 'edit' ? 'Edit Bill' : 'Bill'} #{bill.orderNo}
+            {mode === "edit" ? "Edit Bill" : "Bill"} #{activeBill.orderNo}
           </h2>
           <button
             onClick={onClose}
@@ -137,13 +194,13 @@ export default function BillModal({ bill, menu, onClose, onChanged }) {
           </button>
         </div>
 
-        {mode === 'view' ? (
+        {mode === "view" ? (
           <>
             <div className="bg-brand-cream/60 rounded-2xl p-5 flex justify-center">
-              <ReceiptContent order={bill} />
+              <ReceiptContent order={activeBill} />
             </div>
 
-            {!bill.voided && (
+            {!activeBill.voided && (
               <div className="flex gap-3 pt-5">
                 <button
                   onClick={openEditMode}
@@ -196,10 +253,15 @@ export default function BillModal({ bill, menu, onClose, onChanged }) {
                 </p>
               )}
               {editLines.map((line) => (
-                <div key={line.name} className="flex items-center gap-3 bg-brand-cream rounded-xl p-3">
+                <div
+                  key={line.name}
+                  className="flex items-center gap-3 bg-brand-cream rounded-xl p-3"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate">{line.name}</p>
-                    <p className="text-xs font-bold text-brand-navy">{formatMoney(line.salePrice)} each</p>
+                    <p className="text-xs font-bold text-brand-navy">
+                      {formatMoney(line.salePrice)} each
+                    </p>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -208,7 +270,9 @@ export default function BillModal({ bill, menu, onClose, onChanged }) {
                     >
                       <Minus size={12} />
                     </button>
-                    <span className="w-6 text-center font-extrabold text-sm">{line.quantity}</span>
+                    <span className="w-6 text-center font-extrabold text-sm">
+                      {line.quantity}
+                    </span>
                     <button
                       className="w-7 h-7 rounded-lg bg-brand-red text-white flex items-center justify-center tactile-btn"
                       onClick={() => adjustEditQty(line.name, 1)}
@@ -260,7 +324,7 @@ export default function BillModal({ bill, menu, onClose, onChanged }) {
 
             <div className="flex gap-3 pt-4">
               <button
-                onClick={() => setMode('view')}
+                onClick={() => setMode("view")}
                 className="tactile-btn flex-1 py-3 rounded-xl bg-gray-100 text-brand-ink font-bold text-sm"
               >
                 Discard
@@ -289,9 +353,12 @@ export default function BillModal({ bill, menu, onClose, onChanged }) {
             <div className="w-14 h-14 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center mx-auto mb-4 text-xl">
               <Trash2 size={20} />
             </div>
-            <h2 className="font-display font-bold text-lg text-brand-navy mb-1">Cancel this order?</h2>
+            <h2 className="font-display font-bold text-lg text-brand-navy mb-1">
+              Cancel this order?
+            </h2>
             <p className="text-sm font-semibold text-brand-muted mb-6">
-              Bill #{bill.orderNo} will be marked as cancelled and excluded from profit reports.
+              Bill #{activeBill.orderNo} will be marked as cancelled and
+              excluded from profit reports.
             </p>
             <div className="flex gap-3">
               <button
@@ -311,5 +378,5 @@ export default function BillModal({ bill, menu, onClose, onChanged }) {
         </div>
       )}
     </div>
-  )
+  );
 }

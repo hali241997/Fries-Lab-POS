@@ -1,12 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import logo from "./assets/logo.png";
-import OrderScreen from "./pages/OrderScreen.jsx";
-import ManageMenu from "./pages/ManageMenu.jsx";
-import DailyReport from "./pages/DailyReport.jsx";
-import MonthlyReport from "./pages/MonthlyReport.jsx";
-import Bills from "./pages/Bills.jsx";
-import Receipt from "./components/Receipt.jsx";
-import BillModal from "./components/BillModal.jsx";
+import OrderScreen from "./pages/OrderScreen";
+import ManageMenu from "./pages/ManageMenu";
+import DailyReport from "./pages/DailyReport";
+import MonthlyReport from "./pages/MonthlyReport";
+import Bills from "./pages/Bills";
+import Receipt from "./components/Receipt";
+import BillModal from "./components/BillModal";
+import type { Bill, MenuItem } from "../shared/contracts";
 
 const TABS = [
   { key: "order", label: "Order" },
@@ -14,12 +15,14 @@ const TABS = [
   { key: "daily", label: "Daily Report" },
   { key: "monthly", label: "Monthly Report" },
   { key: "bills", label: "Bills" },
-];
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
 
 export default function App() {
-  const [tab, setTab] = useState("order");
-  const [menu, setMenu] = useState([]);
-  const [activeBill, setActiveBill] = useState(null);
+  const [tab, setTab] = useState<TabKey>("order");
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [activeBill, setActiveBill] = useState<Bill | null>(null);
   const [billsRefreshKey, setBillsRefreshKey] = useState(0);
 
   const reloadMenu = useCallback(() => {
@@ -30,7 +33,7 @@ export default function App() {
     reloadMenu();
   }, [reloadMenu]);
 
-  function handleBillChanged(nextBill) {
+  function handleBillChanged(nextBill: Bill | null) {
     setActiveBill(nextBill);
     setBillsRefreshKey((k) => k + 1);
   }
