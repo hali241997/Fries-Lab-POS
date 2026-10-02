@@ -5,13 +5,24 @@
   "main": ".electron-dist/electron/main.js",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate --schema prisma/schema.prisma && electron-builder install-app-deps",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "provision:owner": "node --env-file-if-exists=.env scripts/provisionOwner.mjs",
+    "db:clear": "node --env-file-if-exists=.env scripts/clearDatabase.mjs",
+    "owner:remove": "node --env-file-if-exists=.env scripts/removeOwner.mjs",
     "dev": "vite",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
-    "typecheck": "tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "typecheck": "npm run prisma:generate && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "typecheck:functions": "deno check supabase/functions/*/index.ts",
+    "lint:functions": "deno lint supabase/functions",
+    "format:functions": "deno fmt supabase/functions",
+    "format:functions:check": "deno fmt --check supabase/functions",
+    "check:functions": "npm run typecheck:functions && npm run lint:functions && npm run format:functions:check",
+    "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron ./node_modules/vitest/vitest.mjs run",
     "build:electron:dev": "tsc -p tsconfig.electron.json",
     "build:electron": "tsc -p tsconfig.electron.json --sourceMap false",
-    "build": "npm run lint && npm run typecheck && vite build && npm run build:electron",
+    "build": "npm run lint && npm run typecheck && npm run check:functions && npm run test && vite build && npm run build:electron",
     "electron:dev": "npm run build:electron:dev && concurrently -k \"vite\" \"tsc -p tsconfig.electron.json --watch --preserveWatchOutput\" \"wait-on tcp:5173 .electron-dist/electron/main.js && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build && electron-builder"
   },
@@ -21,7 +32,12 @@
     "files": [
       "dist/**/*",
       ".electron-dist/**/*",
+      "config/supabase.json",
+      "prisma/migrations/**/*",
       "!.electron-dist/**/*.map"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
     ],
     "directories": {
       "output": "release"
@@ -38,34 +54,40 @@
     }
   },
   "dependencies": {
+    "@prisma/adapter-better-sqlite3": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@supabase/supabase-js": "2.90.0",
+    "better-sqlite3": "12.11.1",
     "lucide-react": "^1.41.0",
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "recharts": "^2.15.4"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^20.19.43",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "24.19.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "6.1.1",
     "autoprefixer": "^10.5.5",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^33.4.11",
-    "electron-builder": "^24.13.3",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^17.12.0",
     "postcss": "^8.5.28",
+    "prisma": "7.10.0",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
-    "vite": "^5.4.1",
+    "vite": "8.3.1",
+    "vitest": "5.0.2",
     "wait-on": "^7.2.0"
   }
 }

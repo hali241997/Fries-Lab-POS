@@ -1,3 +1,4 @@
+import { useCallback, useMemo, type ChangeEvent, FC } from "react";
 import { CheckCircle2, Minus, Plus, ShoppingCart } from "lucide-react";
 import { formatMoney } from "../format";
 import type { CartLine } from "../../shared/contracts";
@@ -12,7 +13,7 @@ interface CartPanelProps {
   canComplete: boolean;
 }
 
-export default function CartPanel({
+const CartPanel: FC<CartPanelProps> = ({
   cart,
   orderNo,
   onChangeQty,
@@ -20,12 +21,23 @@ export default function CartPanel({
   customerName,
   onCustomerNameChange,
   canComplete,
-}: CartPanelProps) {
-  const total = cart.reduce(
-    (sum, line) => sum + line.quantity * line.salePrice,
-    0,
+}) => {
+  const total = useMemo(
+    () => cart.reduce((sum, line) => sum + line.quantity * line.salePrice, 0),
+    [cart],
   );
-  const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
+
+  const itemCount = useMemo(
+    () => cart.reduce((sum, line) => sum + line.quantity, 0),
+    [cart],
+  );
+
+  const handleCustomerNameChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      onCustomerNameChange(event.target.value);
+    },
+    [onCustomerNameChange],
+  );
 
   return (
     <aside className="w-[340px] bg-white border-l border-gray-100 flex flex-col shrink-0 z-20 shadow-[-8px_0_30px_-15px_rgba(0,0,0,0.08)]">
@@ -41,12 +53,12 @@ export default function CartPanel({
           )}
         </div>
         <p className="text-xs font-semibold text-brand-muted mt-1 mb-3">
-          {itemCount} items in cart
+          {itemCount} {itemCount === 1 ? "item" : "items"} in cart
         </p>
         <input
           type="text"
           value={customerName}
-          onChange={(e) => onCustomerNameChange(e.target.value)}
+          onChange={handleCustomerNameChange}
           placeholder="Customer Name"
           className="w-full px-4 py-2.5 rounded-xl bg-brand-cream/60 border border-gray-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-red/30"
         />
@@ -67,7 +79,7 @@ export default function CartPanel({
         ) : (
           cart.map((line) => (
             <div
-              key={line.name}
+              key={line.id}
               className="cart-row flex items-center gap-3 bg-brand-cream rounded-2xl p-3"
             >
               <div className="flex-1 min-w-0">
@@ -80,6 +92,8 @@ export default function CartPanel({
                 <button
                   className="w-7 h-7 rounded-lg bg-white border border-gray-100 flex items-center justify-center text-brand-muted tactile-btn"
                   onClick={() => onChangeQty(line, -1)}
+                  aria-label={`Remove one ${line.name}`}
+                  title={`Remove one ${line.name}`}
                 >
                   <Minus size={12} />
                 </button>
@@ -89,6 +103,8 @@ export default function CartPanel({
                 <button
                   className="w-7 h-7 rounded-lg bg-brand-red text-white flex items-center justify-center tactile-btn"
                   onClick={() => onChangeQty(line, 1)}
+                  aria-label={`Add one ${line.name}`}
+                  title={`Add one ${line.name}`}
                 >
                   <Plus size={12} />
                 </button>
@@ -116,4 +132,6 @@ export default function CartPanel({
       </div>
     </aside>
   );
-}
+};
+
+export default CartPanel;

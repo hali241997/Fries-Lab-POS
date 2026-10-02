@@ -1,0 +1,19 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.90.0"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "lint": {
+    "include": ["./**/*.ts"]
+  },
+  "fmt": {
+    "include": ["./**/*.ts"],
+    "useTabs": false,
+    "indentWidth": 2,
+    "lineWidth": 80,
+    "semiColons": true,
+    "singleQuote": false
+  }
+}

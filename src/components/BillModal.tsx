@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, FC } from "react";
 import { Minus, Pencil, Plus, Printer, Trash2, X } from "lucide-react";
-import ReceiptContent from "./ReceiptContent";
-import { formatMoney } from "../format";
-import { makeOrderId } from "../idUtils";
 import type { Bill, MenuItem } from "../../shared/contracts";
+import { formatMoney } from "../format";
+import { userErrorMessage } from "../userError";
+import ReceiptContent from "./ReceiptContent";
 
 interface EditLine {
+  key: string;
+  menuItemId: string;
   name: string;
   quantity: number;
   salePrice: number;
   costPrice: number;
+  captured: boolean;
 }
 
 interface BillModalProps {
@@ -17,366 +20,307 @@ interface BillModalProps {
   menu: MenuItem[];
   onClose: () => void;
   onChanged: (bill: Bill | null) => void;
+  canEdit: boolean;
+  canCancel: boolean;
+  canPrint: boolean;
 }
 
-export default function BillModal({
+const BillModal: FC<BillModalProps> = ({
   bill,
   menu,
   onClose,
   onChanged,
-}: BillModalProps) {
+  canEdit,
+  canCancel,
+  canPrint,
+}) => {
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [editLines, setEditLines] = useState<EditLine[]>([]);
-  const [editCustomerName, setEditCustomerName] = useState("");
-  const [selectedAddItem, setSelectedAddItem] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [lines, setLines] = useState<EditLine[]>([]);
+  const [customerName, setCustomerName] = useState("");
+  const [selected, setSelected] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setMode("view");
-    setConfirmingCancel(false);
-    setSelectedAddItem("");
-  }, [bill?.billId]);
+    setCancelReason("");
+    setError("");
+  }, [bill?.id, bill?.revisionId]);
 
-  if (!bill) return null;
-  const activeBill = bill;
-
-  async function openEditMode() {
-    const dt = new Date(activeBill.dateTime);
-    const sales = await window.pos.getSalesForMonth(
-      dt.getFullYear(),
-      dt.getMonth() + 1,
-    );
-    const costMap = new Map<string, number>();
-    for (const s of sales) {
-      if (s.orderId === activeBill.billId) costMap.set(s.itemName, s.costPrice);
-    }
-    setEditLines(
-      activeBill.lines.map((l) => ({
-        name: l.name,
-        quantity: l.quantity,
-        salePrice: l.salePrice,
-        costPrice:
-          costMap.get(l.name) ??
-          menu.find((m) => m.name === l.name)?.costPrice ??
-          0,
+  const openEdit = useCallback(() => {
+    if (!bill) return;
+    setLines(
+      bill.lines.map((line) => ({
+        key: line.id,
+        menuItemId: line.menuItemId ?? "",
+        name: line.name,
+        quantity: line.quantity,
+        costPrice: line.costPrice,
+        salePrice: line.salePrice,
+        captured: true,
       })),
     );
-    setEditCustomerName(activeBill.customerName || "");
+    setCustomerName(bill.customerName);
     setMode("edit");
-  }
+  }, [bill]);
 
-  function adjustEditQty(name: string, delta: number) {
-    setEditLines((prev) =>
-      prev
-        .map((l) =>
-          l.name === name ? { ...l, quantity: l.quantity + delta } : l,
+  const change = useCallback((key: string, delta: number) => {
+    setLines((current) =>
+      current
+        .map((line) =>
+          line.key === key
+            ? { ...line, quantity: line.quantity + delta }
+            : line,
         )
-        .filter((l) => l.quantity > 0),
+        .filter((line) => line.quantity > 0),
     );
-  }
+  }, []);
 
-  function removeEditLine(name: string) {
-    setEditLines((prev) => prev.filter((l) => l.name !== name));
-  }
+  const add = useCallback(() => {
+    const item = menu.find((candidate) => candidate.id === selected);
+    if (!item) return;
+    setLines((current) => [
+      ...current,
+      {
+        key: `new:${item.id}`,
+        menuItemId: item.id,
+        name: item.name,
+        quantity: 1,
+        costPrice: item.costPrice,
+        salePrice: item.salePrice,
+        captured: false,
+      },
+    ]);
+    setSelected("");
+  }, [menu, selected]);
 
-  function addSelectedItem() {
-    const menuItem = menu.find((m) => m.name === selectedAddItem);
-    if (!menuItem) return;
-    setEditLines((prev) => {
-      const existing = prev.find((l) => l.name === menuItem.name);
-      if (existing) {
-        return prev.map((l) =>
-          l.name === menuItem.name ? { ...l, quantity: l.quantity + 1 } : l,
-        );
-      }
-      return [
-        ...prev,
-        {
-          name: menuItem.name,
-          quantity: 1,
-          salePrice: menuItem.salePrice,
-          costPrice: menuItem.costPrice,
-        },
-      ];
-    });
-    setSelectedAddItem("");
-  }
-
-  async function confirmCancel() {
-    await window.pos.voidBill(activeBill.billId, "cancelled");
-    setConfirmingCancel(false);
-    onChanged(null);
-  }
-
-  async function saveEdit() {
-    const name = editCustomerName.trim();
-    if (!name || editLines.length === 0 || saving) return;
-    setSaving(true);
+  const save = useCallback(async (): Promise<void> => {
+    if (!bill || !lines.length || !customerName.trim() || busy) return;
+    setBusy(true);
+    setError("");
     try {
-      await window.pos.voidBill(activeBill.billId, "edited");
-
-      const newBillId = makeOrderId();
-      const dateTime = activeBill.dateTime;
-      const total = editLines.reduce(
-        (sum, l) => sum + l.quantity * l.salePrice,
-        0,
-      );
-
-      const salesRows = editLines.map((l) => ({
-        orderId: newBillId,
-        dateTime,
-        itemName: l.name,
-        quantity: l.quantity,
-        costPrice: l.costPrice,
-        salePrice: l.salePrice,
-        lineProfit: l.quantity * (l.salePrice - l.costPrice),
-      }));
-      const billRows = editLines.map((l) => ({
-        billId: newBillId,
-        orderNo: activeBill.orderNo,
-        dateTime,
-        customerName: name,
-        itemName: l.name,
-        quantity: l.quantity,
-        salePrice: l.salePrice,
-        lineTotal: l.quantity * l.salePrice,
-      }));
-
-      await window.pos.appendSale(salesRows);
-      await window.pos.appendBill(billRows);
-
-      onChanged({
-        billId: newBillId,
-        orderNo: activeBill.orderNo,
-        dateTime,
-        customerName: name,
-        lines: editLines.map((l) => ({
-          name: l.name,
-          quantity: l.quantity,
-          salePrice: l.salePrice,
+      const next = await window.pos.reviseOrder({
+        orderId: bill.id,
+        customerName,
+        lines: lines.map((line) => ({
+          menuItemId: line.menuItemId,
+          quantity: line.quantity,
+          ...(line.captured
+            ? {
+                capturedName: line.name,
+                capturedCostPrice: line.costPrice,
+                capturedSalePrice: line.salePrice,
+              }
+            : {}),
         })),
-        total,
       });
+      onChanged(next);
+      setMode("view");
+    } catch (caught: unknown) {
+      setError(userErrorMessage(caught, "We could not update the order."));
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
-  }
+  }, [bill, busy, customerName, lines, onChanged]);
 
-  const editTotal = editLines.reduce(
-    (sum, l) => sum + l.quantity * l.salePrice,
-    0,
+  const cancel = useCallback(async (): Promise<void> => {
+    if (!bill || !cancelReason.trim() || busy) return;
+    setBusy(true);
+    try {
+      onChanged(
+        await window.pos.cancelOrder({
+          orderId: bill.id,
+          reason: cancelReason,
+        }),
+      );
+      setCancelReason("");
+    } catch (caught: unknown) {
+      setError(userErrorMessage(caught, "We could not cancel the order."));
+    } finally {
+      setBusy(false);
+    }
+  }, [bill, busy, cancelReason, onChanged]);
+
+  const available = useMemo(
+    () =>
+      menu.filter(
+        (item) =>
+          item.active &&
+          item.availableForSale &&
+          !lines.some((line) => line.menuItemId === item.id),
+      ),
+    [lines, menu],
   );
-  const availableToAdd = menu.filter(
-    (m) => !editLines.some((l) => l.name === m.name),
+
+  const total = useMemo(
+    () => lines.reduce((sum, line) => sum + line.quantity * line.salePrice, 0),
+    [lines],
   );
-  const canSaveEdit =
-    editLines.length > 0 && editCustomerName.trim().length > 0 && !saving;
+
+  const print = useCallback(() => {
+    window.print();
+  }, []);
+
+  if (!bill) return null;
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/40 z-40 grid place-items-center p-4"
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-3xl shadow-xl w-full p-7 ${mode === "edit" ? "max-w-xl" : "max-w-md"}`}
-        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-3xl shadow-xl w-full max-w-xl p-7"
+        onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-display font-bold text-xl text-brand-navy">
-            {mode === "edit" ? "Edit Bill" : "Bill"} #{activeBill.orderNo}
+        <div className="flex justify-between mb-5">
+          <h2 className="font-display font-bold text-xl">
+            {mode === "edit" ? "Edit order" : `Bill ${bill.orderNo}`}
           </h2>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-brand-cream flex items-center justify-center text-brand-muted tactile-btn"
-          >
-            <X size={16} />
+          <button onClick={onClose} aria-label="Close bill" title="Close">
+            <X />
           </button>
         </div>
-
+        {error && (
+          <p className="mb-3 text-sm font-bold text-brand-red">{error}</p>
+        )}
         {mode === "view" ? (
           <>
-            <div className="bg-brand-cream/60 rounded-2xl p-5 flex justify-center">
-              <ReceiptContent order={activeBill} />
+            <div className="bg-brand-cream rounded-2xl p-5 flex justify-center">
+              <ReceiptContent order={bill} />
             </div>
-
-            {!activeBill.voided && (
-              <div className="flex gap-3 pt-5">
+            {bill.status === "cancelled" && (
+              <p className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 font-bold text-sm">
+                Cancelled
+                {bill.cancellationReason ? `: ${bill.cancellationReason}` : ""}
+              </p>
+            )}
+            {bill.status === "active" && canCancel && (
+              <div className="mt-4 flex gap-2">
+                <input
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="Cancellation reason"
+                  className="flex-1 px-3 py-2 rounded-xl border"
+                />
                 <button
-                  onClick={openEditMode}
-                  className="tactile-btn flex-1 py-3 rounded-xl bg-brand-navy/10 text-brand-navy font-bold text-sm flex items-center justify-center gap-2"
+                  disabled={!cancelReason.trim() || busy}
+                  onClick={cancel}
+                  aria-label="Cancel order"
+                  title="Cancel order"
+                  className="px-4 rounded-xl bg-red-100 text-red-700 font-bold disabled:opacity-40"
                 >
-                  <Pencil size={14} /> Edit Order
-                </button>
-                <button
-                  onClick={() => setConfirmingCancel(true)}
-                  className="tactile-btn flex-1 py-3 rounded-xl bg-brand-red/10 text-brand-red font-bold text-sm flex items-center justify-center gap-2"
-                >
-                  <Trash2 size={14} /> Cancel Order
+                  <Trash2 size={15} />
                 </button>
               </div>
             )}
-
-            <div className="flex gap-3 pt-3">
-              <button
-                onClick={onClose}
-                className="tactile-btn flex-1 py-3 rounded-xl bg-gray-100 text-brand-ink font-bold text-sm"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="tactile-btn flex-1 py-3 rounded-xl bg-brand-teal text-white font-bold text-sm shadow-pos flex items-center justify-center gap-2"
-              >
-                <Printer size={16} /> Print
-              </button>
+            <div className="flex gap-2 mt-4">
+              {bill.status === "active" && canEdit && (
+                <button
+                  onClick={openEdit}
+                  className="flex-1 py-3 rounded-xl bg-brand-navy/10 text-brand-navy font-bold flex items-center justify-center gap-2"
+                >
+                  <Pencil size={15} /> Edit order
+                </button>
+              )}
+              {canPrint && (
+                <button
+                  onClick={print}
+                  className="flex-1 py-3 rounded-xl bg-brand-teal text-white font-bold flex items-center justify-center gap-2"
+                >
+                  <Printer size={15} /> Print
+                </button>
+              )}
             </div>
           </>
         ) : (
           <>
-            <div className="mb-4">
-              <label className="block text-xs font-bold text-brand-muted mb-1.5 uppercase tracking-wide">
-                Customer Name
-              </label>
-              <input
-                type="text"
-                value={editCustomerName}
-                onChange={(e) => setEditCustomerName(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-brand-cream/60 border border-gray-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-red/30"
-              />
-            </div>
-
+            <input
+              value={customerName}
+              onChange={(event) => setCustomerName(event.target.value)}
+              placeholder="Customer name"
+              className="w-full px-4 py-3 rounded-xl bg-brand-cream border mb-3"
+            />
             <div className="max-h-64 overflow-y-auto space-y-2">
-              {editLines.length === 0 && (
-                <p className="text-center text-sm font-semibold text-brand-muted py-6">
-                  No items left. Add one below, or use Cancel Order instead.
-                </p>
-              )}
-              {editLines.map((line) => (
+              {lines.map((line) => (
                 <div
-                  key={line.name}
+                  key={line.key}
                   className="flex items-center gap-3 bg-brand-cream rounded-xl p-3"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm truncate">{line.name}</p>
-                    <p className="text-xs font-bold text-brand-navy">
+                  <div className="flex-1">
+                    <p className="font-bold">{line.name}</p>
+                    <p className="text-xs">
                       {formatMoney(line.salePrice)} each
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      className="w-7 h-7 rounded-lg bg-white border border-gray-100 flex items-center justify-center text-brand-muted tactile-btn"
-                      onClick={() => adjustEditQty(line.name, -1)}
-                    >
-                      <Minus size={12} />
-                    </button>
-                    <span className="w-6 text-center font-extrabold text-sm">
-                      {line.quantity}
-                    </span>
-                    <button
-                      className="w-7 h-7 rounded-lg bg-brand-red text-white flex items-center justify-center tactile-btn"
-                      onClick={() => adjustEditQty(line.name, 1)}
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </div>
-                  <span className="font-extrabold text-sm w-16 text-right">
-                    {formatMoney(line.quantity * line.salePrice)}
-                  </span>
                   <button
-                    onClick={() => removeEditLine(line.name)}
-                    className="text-brand-red"
+                    onClick={() => change(line.key, -1)}
+                    aria-label={`Remove one ${line.name}`}
+                    title={`Remove one ${line.name}`}
                   >
-                    <X size={16} />
+                    <Minus size={14} />
                   </button>
+                  <b>{line.quantity}</b>
+                  <button
+                    onClick={() => change(line.key, 1)}
+                    aria-label={`Add one ${line.name}`}
+                    title={`Add one ${line.name}`}
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <b className="w-20 text-right">
+                    {formatMoney(line.quantity * line.salePrice)}
+                  </b>
                 </div>
               ))}
             </div>
-
-            {availableToAdd.length > 0 && (
-              <div className="mt-4 flex gap-2">
+            {available.length > 0 && (
+              <div className="flex gap-2 mt-3">
                 <select
-                  value={selectedAddItem}
-                  onChange={(e) => setSelectedAddItem(e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-brand-cream/60 border border-gray-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-red/30"
+                  value={selected}
+                  onChange={(event) => setSelected(event.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl border"
                 >
                   <option value="">Add an item…</option>
-                  {availableToAdd.map((item) => (
-                    <option key={item.name} value={item.name}>
+                  {available.map((item) => (
+                    <option key={item.id} value={item.id}>
                       {item.name} — {formatMoney(item.salePrice)}
                     </option>
                   ))}
                 </select>
                 <button
-                  onClick={addSelectedItem}
-                  disabled={!selectedAddItem}
-                  className="tactile-btn px-4 rounded-xl bg-brand-navy text-white font-bold text-sm disabled:bg-gray-200 disabled:text-gray-400"
+                  disabled={!selected}
+                  onClick={add}
+                  className="px-4 rounded-xl bg-brand-navy text-white font-bold disabled:opacity-40"
                 >
                   Add
                 </button>
               </div>
             )}
-
-            <div className="flex justify-between font-display font-bold text-xl text-brand-navy mt-5 pt-4 border-t border-gray-100">
+            <div className="flex justify-between font-bold text-xl mt-5 pt-4 border-t">
               <span>Total</span>
-              <span>{formatMoney(editTotal)}</span>
+              <span>{formatMoney(total)}</span>
             </div>
-
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setMode("view")}
-                className="tactile-btn flex-1 py-3 rounded-xl bg-gray-100 text-brand-ink font-bold text-sm"
+                className="flex-1 py-3 rounded-xl bg-gray-100 font-bold"
               >
-                Discard
+                Back
               </button>
               <button
-                onClick={saveEdit}
-                disabled={!canSaveEdit}
-                className="tactile-btn flex-1 py-3 rounded-xl bg-brand-teal text-white font-bold text-sm shadow-pos disabled:bg-gray-200 disabled:text-gray-400"
+                disabled={busy || !lines.length || !customerName.trim()}
+                onClick={save}
+                className="flex-1 py-3 rounded-xl bg-brand-red text-white font-bold disabled:opacity-40"
               >
-                Save Changes
+                {busy ? "Saving…" : "Save revision"}
               </button>
             </div>
           </>
         )}
       </div>
-
-      {confirmingCancel && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={() => setConfirmingCancel(false)}
-        >
-          <div
-            className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-7 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-14 h-14 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center mx-auto mb-4 text-xl">
-              <Trash2 size={20} />
-            </div>
-            <h2 className="font-display font-bold text-lg text-brand-navy mb-1">
-              Cancel this order?
-            </h2>
-            <p className="text-sm font-semibold text-brand-muted mb-6">
-              Bill #{activeBill.orderNo} will be marked as cancelled and
-              excluded from profit reports.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmingCancel(false)}
-                className="tactile-btn flex-1 py-3 rounded-xl bg-gray-100 text-brand-ink font-bold text-sm"
-              >
-                Keep Order
-              </button>
-              <button
-                onClick={confirmCancel}
-                className="tactile-btn flex-1 py-3 rounded-xl bg-brand-red text-white font-bold text-sm shadow-pos"
-              >
-                Cancel Order
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
-}
+};
+
+export default BillModal;

@@ -1,0 +1,170 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../electron/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
+  engineType   = "client"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Setting {
+  key   String @id
+  value String
+
+  @@map("settings")
+}
+
+model Device {
+  id              String  @id
+  installationId  String  @unique @map("installation_id")
+  terminalCode    String? @map("terminal_code")
+  storeId         String? @map("store_id")
+  encryptedSecret String? @map("encrypted_secret")
+  registeredAt    String? @map("registered_at")
+
+  @@map("devices")
+}
+
+model PermissionSnapshot {
+  id              String @id
+  memberId        String @map("member_id")
+  permissionsJson String @map("permissions_json")
+  signedToken     String @map("signed_token")
+  version         Int
+  issuedAt        String @map("issued_at")
+  lastValidatedAt String @map("last_validated_at")
+
+  @@map("permission_snapshots")
+}
+
+model MenuItem {
+  id               String  @id
+  storeId          String  @map("store_id")
+  name             String
+  nameNormalized   String  @unique @map("name_normalized")
+  costPricePaisas  Int     @map("cost_price_paisas")
+  salePricePaisas  Int     @map("sale_price_paisas")
+  availableForSale Boolean @default(true) @map("available_for_sale")
+  version          Int     @default(1)
+  updatedAt        String  @map("updated_at")
+  deletedAt        String? @map("deleted_at")
+
+  @@map("menu_items")
+}
+
+model Order {
+  id                String          @id
+  storeId           String          @map("store_id")
+  orderNo           String          @unique @map("order_no")
+  occurredAt        String          @map("occurred_at")
+  status            String
+  currentRevisionId String          @map("current_revision_id")
+  createdByMemberId String?         @map("created_by_member_id")
+  terminalId        String?         @map("terminal_id")
+  source            String          @default("app")
+  updatedAt         String          @map("updated_at")
+  revisions         OrderRevision[]
+  events            OrderEvent[]
+
+  @@map("orders")
+}
+
+model OrderRevision {
+  id                String      @id
+  orderId           String      @map("order_id")
+  revisionNumber    Int         @map("revision_number")
+  customerName      String      @map("customer_name")
+  totalPaisas       Int         @map("total_paisas")
+  createdAt         String      @map("created_at")
+  createdByMemberId String?     @map("created_by_member_id")
+  terminalId        String?     @map("terminal_id")
+  employeeName      String?     @map("employee_name")
+  terminalCode      String?     @map("terminal_code")
+  status            String
+  order             Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  items             OrderItem[]
+
+  @@unique([orderId, revisionNumber])
+  @@map("order_revisions")
+}
+
+model OrderItem {
+  id              String        @id
+  revisionId      String        @map("revision_id")
+  menuItemId      String?       @map("menu_item_id")
+  itemName        String        @map("item_name")
+  quantity        Int
+  costPricePaisas Int           @map("cost_price_paisas")
+  salePricePaisas Int           @map("sale_price_paisas")
+  revision        OrderRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@index([revisionId], map: "idx_order_items_revision")
+  @@map("order_items")
+}
+
+model OrderEvent {
+  id            String  @id
+  orderId       String  @map("order_id")
+  revisionId    String? @map("revision_id")
+  type          String
+  occurredAt    String  @map("occurred_at")
+  actorMemberId String? @map("actor_member_id")
+  terminalId    String? @map("terminal_id")
+  detailsJson   String  @default("{}") @map("details_json")
+  order         Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId], map: "idx_order_events_order")
+  @@map("order_events")
+}
+
+model OutboxOperation {
+  id                      String  @id
+  operationType           String  @map("operation_type")
+  aggregateType           String  @map("aggregate_type")
+  aggregateId             String  @map("aggregate_id")
+  payloadJson             String  @map("payload_json")
+  actorMemberId           String? @map("actor_member_id")
+  terminalId              String? @map("terminal_id")
+  permissionSnapshotToken String? @map("permission_snapshot_token")
+  occurredAt              String  @map("occurred_at")
+  attempts                Int     @default(0)
+  lastError               String? @map("last_error")
+  status                  String  @default("pending")
+
+  @@index([status, occurredAt], map: "idx_outbox_status_time")
+  @@map("outbox_operations")
+}
+
+model SyncState {
+  id         String  @id
+  cursor     String  @default("0")
+  lastSyncAt String? @map("last_sync_at")
+
+  @@map("sync_state")
+}
+
+model SyncConflict {
+  id                String  @id
+  aggregateType     String  @map("aggregate_type")
+  aggregateId       String  @map("aggregate_id")
+  localPayloadJson  String  @map("local_payload_json")
+  serverPayloadJson String  @map("server_payload_json")
+  createdAt         String  @map("created_at")
+  resolvedAt        String? @map("resolved_at")
+
+  @@map("sync_conflicts")
+}
+
+model LegacyImportRun {
+  id          String  @id
+  startedAt   String  @map("started_at")
+  completedAt String? @map("completed_at")
+  status      String
+  summaryJson String  @map("summary_json")
+  backupPath  String? @map("backup_path")
+
+  @@map("legacy_import_runs")
+}

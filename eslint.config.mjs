@@ -7,24 +7,24 @@ import tseslint from "typescript-eslint"
 
 export default tseslint.config(
   {
-    ignores: [".electron-dist/**", "dist/**", "node_modules/**", "release/**"]
+    ignores: [".electron-dist/**", "dist/**", "electron/generated/**", "node_modules/**", "release/**", "supabase/database.types.ts"]
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["**/*.{js,mjs,ts,tsx}"],
+    files: ["**/*.{js,mjs,ts,mts,tsx}"],
     rules: {
       quotes: ["error", "double", { allowTemplateLiterals: false, avoidEscape: false }]
     }
   },
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ["**/*.{ts,mts,tsx}"],
     rules: {
       semi: ["error", "always"]
     }
   },
   {
-    files: ["*.config.{js,mjs}", "eslint.config.mjs", "scripts/**/*.js"],
+    files: ["*.config.{js,mjs,ts,mts}", "eslint.config.mjs", "scripts/**/*.{js,mjs}"],
     languageOptions: {
       globals: globals.node
     },

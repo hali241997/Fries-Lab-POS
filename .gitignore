@@ -1,7 +1,10 @@
 node_modules/
 dist/
 .electron-dist/
+electron/generated/prisma/
+prisma/local.sqlite*
 release/
+supabase/.temp/
 
 # Env / secrets
 .env
@@ -17,4 +20,11 @@ Thumbs.db
 
 # Editor
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
+
+# Agents
+.agents/
+.claude/
+.windsurf/

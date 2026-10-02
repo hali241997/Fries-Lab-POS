@@ -1,194 +1,176 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, FC } from "react";
 import { Search } from "lucide-react";
-import ItemButton from "../components/ItemButton";
+import type { Bill, CartLine, MenuItem } from "../../shared/contracts";
 import CartPanel from "../components/CartPanel";
-import { makeOrderId } from "../idUtils";
-import type {
-  BillRow,
-  CartLine,
-  CompletedOrder,
-  MenuItem,
-  SaleRow,
-} from "../../shared/contracts";
-
-// Local (not UTC) timestamp string, so the shop's calendar day/month is used
-// for the sales log filename and Daily/Monthly report filtering.
-function localDateTime(): string {
-  const d = new Date();
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function todayDisplayId(): string {
-  const d = new Date();
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-}
+import ItemButton from "../components/ItemButton";
+import { userErrorMessage } from "../userError";
 
 interface OrderScreenProps {
   menu: MenuItem[];
-  onOrderComplete: (order: CompletedOrder) => void;
+  onOrderComplete: (bill: Bill) => void;
+  canCreate: boolean;
 }
 
-export default function OrderScreen({
+const OrderScreen: FC<OrderScreenProps> = ({
   menu,
   onOrderComplete,
-}: OrderScreenProps) {
-  const [cart, setCart] = useState<Record<string, CartLine>>({});
-  const [search, setSearch] = useState("");
+  canCreate,
+}) => {
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [customerName, setCustomerName] = useState("");
+  const [query, setQuery] = useState("");
   const [lastOrderNo, setLastOrderNo] = useState<string | null>(null);
-  const [clock, setClock] = useState(new Date());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   useEffect(() => {
-    const id = setInterval(() => setClock(new Date()), 30000);
-    return () => clearInterval(id);
-  }, []);
+    if (!canCreate) return;
+    void window.pos
+      .getCartDraft()
+      .then((draft) => {
+        setError("");
+        setCustomerName(draft.customerName);
+        setQuantities(
+          Object.fromEntries(
+            draft.lines.map((line) => [line.menuItemId, line.quantity]),
+          ),
+        );
+        setDraftLoaded(true);
+      })
+      .catch((caught: unknown) => {
+        setError(userErrorMessage(caught, "We could not restore the cart."));
+      });
+  }, [canCreate]);
 
-  function changeQty(item: MenuItem, delta: number) {
-    setCart((prev) => {
-      const existingQty = prev[item.name]?.quantity || 0;
-      const nextQty = existingQty + delta;
-      if (nextQty <= 0) {
-        const { [item.name]: _removed, ...rest } = prev;
-        return rest;
-      }
-      return {
-        ...prev,
-        [item.name]: {
-          name: item.name,
-          costPrice: item.costPrice,
-          salePrice: item.salePrice,
-          quantity: nextQty,
-        },
-      };
-    });
-  }
+  useEffect(() => {
+    if (!draftLoaded || !canCreate) return;
+    const timeout = window.setTimeout(() => {
+      const lines = Object.entries(quantities)
+        .filter(([, quantity]) => quantity > 0)
+        .map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+      void window.pos
+        .saveCartDraft({
+          customerName,
+          lines,
+          updatedAt: new Date().toISOString(),
+        })
+        .catch((caught: unknown) => {
+          setError(userErrorMessage(caught, "We could not save the cart."));
+        });
+    }, 100);
+    return () => window.clearTimeout(timeout);
+  }, [canCreate, customerName, draftLoaded, quantities]);
 
-  const cartLines = Object.values(cart);
-  const filteredMenu = menu.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase()),
+  const filtered = useMemo(
+    () =>
+      menu.filter(
+        (item) =>
+          item.active &&
+          item.availableForSale &&
+          item.name.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [menu, query],
   );
 
-  const trimmedName = customerName.trim();
-  const canComplete = cartLines.length > 0 && trimmedName.length > 0;
+  const cartLines = useMemo<CartLine[]>(
+    () =>
+      menu
+        .filter(
+          (item) =>
+            item.active &&
+            item.availableForSale &&
+            (quantities[item.id] ?? 0) > 0,
+        )
+        .map((item) => ({ ...item, quantity: quantities[item.id] ?? 0 })),
+    [menu, quantities],
+  );
 
-  async function completeOrder() {
-    if (!canComplete) return;
+  const changeQty = useCallback(
+    (item: MenuItem, delta: number): void => {
+      if (!canCreate) return;
+      setQuantities((current) => ({
+        ...current,
+        [item.id]: Math.max(0, (current[item.id] ?? 0) + delta),
+      }));
+    },
+    [canCreate],
+  );
 
-    const orderId = makeOrderId();
-    const dateTime = localDateTime();
-    const total = cartLines.reduce(
-      (sum, l) => sum + l.quantity * l.salePrice,
-      0,
-    );
-
-    const rows: SaleRow[] = cartLines.map((l) => ({
-      orderId,
-      dateTime,
-      itemName: l.name,
-      quantity: l.quantity,
-      costPrice: l.costPrice,
-      salePrice: l.salePrice,
-      lineProfit: l.quantity * (l.salePrice - l.costPrice),
-    }));
-
-    const now = new Date();
-    const todaySales = await window.pos.getSalesForMonth(
-      now.getFullYear(),
-      now.getMonth() + 1,
-    );
-    const todaysOrderCount = new Set(
-      todaySales
-        .filter((s) => s.dateTime.slice(0, 10) === dateTime.slice(0, 10))
-        .map((s) => s.orderId),
-    ).size;
-    const orderNo = `FL-${todayDisplayId()}-${String(todaysOrderCount + 1).padStart(3, "0")}`;
-
-    const billRows: BillRow[] = cartLines.map((l) => ({
-      billId: orderId,
-      orderNo,
-      dateTime,
-      customerName: trimmedName,
-      itemName: l.name,
-      quantity: l.quantity,
-      salePrice: l.salePrice,
-      lineTotal: l.quantity * l.salePrice,
-    }));
-
-    await window.pos.appendSale(rows);
-    await window.pos.appendBill(billRows);
-
-    setLastOrderNo(orderNo);
-    setCart({});
-    setCustomerName("");
-
-    onOrderComplete({
-      billId: orderId,
-      orderNo,
-      dateTime,
-      customerName: trimmedName,
-      lines: cartLines,
-      total,
-    });
-  }
+  const completeOrder = useCallback(async (): Promise<void> => {
+    if (!canCreate || !customerName.trim() || !cartLines.length || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const bill = await window.pos.createOrder({
+        customerName: customerName.trim(),
+        lines: cartLines.map((line) => ({
+          menuItemId: line.id,
+          quantity: line.quantity,
+        })),
+      });
+      setLastOrderNo(bill.orderNo);
+      setQuantities({});
+      setCustomerName("");
+      onOrderComplete(bill);
+    } catch (caught: unknown) {
+      setError(userErrorMessage(caught, "We could not complete the order."));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, canCreate, cartLines, customerName, onOrderComplete]);
 
   return (
-    <div className="flex-1 flex min-h-0">
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="px-6 md:px-8 pt-5 pb-3 flex items-center justify-between shrink-0">
+    <div className="flex flex-1 min-h-0">
+      <main className="flex-1 overflow-y-auto px-6 md:px-10 py-6">
+        <div className="flex items-center justify-between mb-5 gap-4">
           <div>
             <h1 className="font-display font-bold text-2xl text-brand-navy">
-              Menu Items
+              New Order
             </h1>
-            <p className="text-sm font-semibold text-brand-muted">
-              <span className="mr-3">
-                {clock.toLocaleString([], {
-                  weekday: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                })}
-              </span>
-              Tap + to add items to the order
-            </p>
+            {!canCreate && (
+              <p className="text-sm font-bold text-brand-red">
+                You can view the menu, but cannot create orders.
+              </p>
+            )}
+            {error && (
+              <p className="text-sm font-bold text-brand-red">{error}</p>
+            )}
           </div>
-          <div className="relative w-72">
+          <div className="relative w-64">
             <Search
               size={16}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
             />
             <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search items…"
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-gray-100 text-sm font-semibold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-red/30 shadow-sm"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search menu…"
+              className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white border shadow-sm"
             />
           </div>
         </div>
-
-        <div className="flex-1 overflow-y-auto px-6 md:px-8 py-4">
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredMenu.length === 0 && (
-              <div className="col-span-full text-center text-brand-muted font-semibold py-16">
-                {menu.length === 0
-                  ? "No menu items yet. Add some in Manage Menu."
-                  : "No items match your search."}
-              </div>
-            )}
-            {filteredMenu.map((item) => (
-              <ItemButton
-                key={item.name}
-                item={item}
-                qty={cart[item.name]?.quantity || 0}
-                onChangeQty={changeQty}
-              />
-            ))}
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((item) => (
+            <ItemButton
+              key={item.id}
+              item={item}
+              qty={quantities[item.id] ?? 0}
+              onChangeQty={changeQty}
+            />
+          ))}
         </div>
+        {!filtered.length && (
+          <div className="py-16 text-center text-brand-muted">
+            <Search className="mx-auto mb-2" />
+            <p className="font-bold">
+              {query.trim()
+                ? "No menu items match your search."
+                : "No active menu items are available."}
+            </p>
+          </div>
+        )}
       </main>
-
       <CartPanel
         cart={cartLines}
         orderNo={lastOrderNo}
@@ -196,8 +178,15 @@ export default function OrderScreen({
         onComplete={completeOrder}
         customerName={customerName}
         onCustomerNameChange={setCustomerName}
-        canComplete={canComplete}
+        canComplete={
+          canCreate &&
+          !busy &&
+          cartLines.length > 0 &&
+          customerName.trim().length > 0
+        }
       />
     </div>
   );
-}
+};
+
+export default OrderScreen;
