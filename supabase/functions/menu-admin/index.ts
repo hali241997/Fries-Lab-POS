@@ -68,8 +68,9 @@ Deno.serve(async (request) => {
           available_for_sale: body.availableForSale,
           version: body.expectedVersion + 1,
           updated_at: new Date().toISOString(),
-          deleted_at:
-            body.action === "archive" ? new Date().toISOString() : null,
+          deleted_at: body.action === "archive"
+            ? new Date().toISOString()
+            : null,
         })
         .eq("id", body.id)
         .eq("store_id", actor.storeId)

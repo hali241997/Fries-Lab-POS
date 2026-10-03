@@ -64,26 +64,25 @@ Deno.serve(async (request) => {
       publishableKey(),
       { auth: { persistSession: false } },
     );
-    const { data: signedIn, error: signInError } =
-      await anon.auth.signInWithPassword({
+    const { data: signedIn, error: signInError } = await anon.auth
+      .signInWithPassword({
         email: membership.auth_email,
         password: body.password,
       });
     if (signInError || !signedIn.session) {
-      const attempts =
-        attempt &&
-        Date.now() - Date.parse(attempt.window_started_at) < 15 * 60_000
-          ? attempt.attempts + 1
-          : 1;
+      const attempts = attempt &&
+          Date.now() - Date.parse(attempt.window_started_at) < 15 * 60_000
+        ? attempt.attempts + 1
+        : 1;
       await admin.from("login_attempts").upsert({
         key: rateKey,
         attempts,
-        window_started_at:
-          attempts === 1 ? new Date().toISOString() : attempt.window_started_at,
-        blocked_until:
-          attempts >= 5
-            ? new Date(Date.now() + 15 * 60_000).toISOString()
-            : null,
+        window_started_at: attempts === 1
+          ? new Date().toISOString()
+          : attempt.window_started_at,
+        blocked_until: attempts >= 5
+          ? new Date(Date.now() + 15 * 60_000).toISOString()
+          : null,
       });
       return json({ error: "Invalid employee ID or password." }, 401);
     }
@@ -94,19 +93,18 @@ Deno.serve(async (request) => {
       .select("permission_key")
       .eq("membership_id", membership.id);
 
-    const permissions =
-      membership.role === "owner"
-        ? [
-            "menu.view",
-            "orders.create",
-            "orders.edit",
-            "orders.cancel",
-            "bills.view",
-            "menu.manage",
-            "reports.daily.view",
-            "reports.monthly.view",
-          ]
-        : (grants ?? []).map((row) => row.permission_key);
+    const permissions = membership.role === "owner"
+      ? [
+        "menu.view",
+        "orders.create",
+        "orders.edit",
+        "orders.cancel",
+        "bills.view",
+        "menu.manage",
+        "reports.daily.view",
+        "reports.monthly.view",
+      ]
+      : (grants ?? []).map((row) => row.permission_key);
 
     const actor = {
       userId: membership.profile_id,

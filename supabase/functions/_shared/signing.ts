@@ -4,8 +4,8 @@ import { type Actor, secretKey } from "./auth.ts";
 const encoder = new TextEncoder();
 
 async function sign(value: string): Promise<string> {
-  const signingSecret =
-    Deno.env.get("PERMISSION_SIGNING_SECRET") || secretKey();
+  const signingSecret = Deno.env.get("PERMISSION_SIGNING_SECRET") ||
+    secretKey();
   if (!signingSecret) throw new Error("Permission signing is not configured.");
 
   const key = await crypto.subtle.importKey(

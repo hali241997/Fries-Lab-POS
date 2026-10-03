@@ -73,15 +73,14 @@ Deno.serve(async (request) => {
           continue;
         }
 
-        const permission =
-          operation.type === "menu.imported"
-            ? "menu.manage"
-            : operation.type === "order.created" ||
-                operation.type === "order.imported"
-              ? "orders.create"
-              : operation.type === "order.revised"
-                ? "orders.edit"
-                : "orders.cancel";
+        const permission = operation.type === "menu.imported"
+          ? "menu.manage"
+          : operation.type === "order.created" ||
+              operation.type === "order.imported"
+          ? "orders.create"
+          : operation.type === "order.revised"
+          ? "orders.edit"
+          : "orders.cancel";
         if (
           operation.actorMemberId &&
           operation.actorMemberId !== actor.membershipId
@@ -181,8 +180,7 @@ Deno.serve(async (request) => {
             .maybeSingle();
           throwIfError(previousRevision.error);
 
-          const sequential =
-            previousRevision.data &&
+          const sequential = previousRevision.data &&
             bill.revisionNumber === previousRevision.data.revision_number + 1;
           if (!sequential) {
             if (previousRevision.data) {

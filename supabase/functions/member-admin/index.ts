@@ -64,12 +64,11 @@ async function listMembers(
       ? row.profiles[0]
       : row.profiles;
 
-    const permissions =
-      row.role === "owner"
-        ? [...validPermissions]
-        : (row.member_permissions ?? []).map(
-            (grant: { permission_key: string }) => grant.permission_key,
-          );
+    const permissions = row.role === "owner"
+      ? [...validPermissions]
+      : (row.member_permissions ?? []).map(
+        (grant: { permission_key: string }) => grant.permission_key,
+      );
 
     return {
       id: row.id,

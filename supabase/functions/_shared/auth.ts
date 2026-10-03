@@ -72,19 +72,18 @@ export async function actorFromRequest(
     .eq("membership_id", membership.id);
   if (grantsError) throw grantsError;
 
-  const permissions =
-    membership.role === "owner"
-      ? [
-          "menu.view",
-          "orders.create",
-          "orders.edit",
-          "orders.cancel",
-          "bills.view",
-          "menu.manage",
-          "reports.daily.view",
-          "reports.monthly.view",
-        ]
-      : (grants ?? []).map((row) => row.permission_key);
+  const permissions = membership.role === "owner"
+    ? [
+      "menu.view",
+      "orders.create",
+      "orders.edit",
+      "orders.cancel",
+      "bills.view",
+      "menu.manage",
+      "reports.daily.view",
+      "reports.monthly.view",
+    ]
+    : (grants ?? []).map((row) => row.permission_key);
 
   return {
     admin,
