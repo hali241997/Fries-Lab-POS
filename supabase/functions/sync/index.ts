@@ -37,6 +37,7 @@ interface Operation {
 }
 
 class PermanentOperationError extends Error {}
+const MAX_OPERATIONS_PER_REQUEST = 20;
 
 function throwIfError(error: { message: string } | null): void {
   if (error) throw error;
@@ -54,11 +55,13 @@ Deno.serve(async (request) => {
     };
     const acceptedOperationIds: string[] = [];
     const permanentErrors: Array<{ operationId: string; message: string }> = [];
-    const operations = [...(body.operations ?? [])].sort((left, right) => {
-      const leftPriority = left.type === "menu.imported" ? 0 : 1;
-      const rightPriority = right.type === "menu.imported" ? 0 : 1;
-      return leftPriority - rightPriority;
-    });
+    const operations = [...(body.operations ?? [])]
+      .sort((left, right) => {
+        const leftPriority = left.type === "menu.imported" ? 0 : 1;
+        const rightPriority = right.type === "menu.imported" ? 0 : 1;
+        return leftPriority - rightPriority;
+      })
+      .slice(0, MAX_OPERATIONS_PER_REQUEST);
 
     for (const operation of operations) {
       try {

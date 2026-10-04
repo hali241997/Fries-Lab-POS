@@ -12,6 +12,8 @@ import type { SessionService } from "./sessionService";
 const ONLINE_MESSAGE = "Connected. Your data is up to date.";
 const OFFLINE_MESSAGE =
   "You’re offline. Orders will sync when the connection returns. Menu changes require internet.";
+export const SYNC_BATCH_SIZE = 20;
+const SYNC_CHANGE_PAGE_SIZE = 1_000;
 
 export class ConnectivityService {
   private status: ConnectivityStatus = {
@@ -136,50 +138,91 @@ export class ConnectivityService {
     this.syncing = true;
     await this.update({ state: "syncing", message: "Synchronizing…" });
     try {
-      const operations = await this.database.outboxOperation.findMany({
-        where: { status: "pending" },
-        orderBy: { occurredAt: "asc" },
-      });
-      operations.sort((left, right) => {
-        const leftPriority = left.operationType === "menu.imported" ? 0 : 1;
-        const rightPriority = right.operationType === "menu.imported" ? 0 : 1;
-        return leftPriority - rightPriority;
-      });
-      const syncState = await this.database.syncState.findUniqueOrThrow({
-        where: { id: "primary" },
-      });
-      const response = await this.cloud.sync({
-        cursor: syncState.cursor,
-        operations: operations.map((operation) => ({
-          id: operation.id,
-          type: operation.operationType,
-          aggregateType: operation.aggregateType,
-          aggregateId: operation.aggregateId,
-          payload: JSON.parse(operation.payloadJson) as unknown,
-          actorMemberId: operation.actorMemberId,
-          terminalId: operation.terminalId,
-          permissionSnapshot: operation.permissionSnapshotToken,
-          occurredAt: operation.occurredAt,
-        })),
-      });
-      await this.applySyncResponse(response);
-      const now = new Date().toISOString();
-      await this.database.syncState.update({
-        where: { id: syncState.id },
-        data: { cursor: response.cursor, lastSyncAt: now },
-      });
-      if (response.member)
-        await this.session.renewFromValidation(
-          response.member,
-          response.permissionSnapshot,
-        );
-      else await this.session.renewFromValidation(await this.cloud.validate());
-      const degraded = response.permanentErrors.length > 0;
+      let completedRequest = false;
+      let pullMoreChanges = true;
+      let permanentErrorsFound = false;
+      let lastSyncAt = new Date().toISOString();
+
+      while (true) {
+        const menuOperations =
+          await this.database.outboxOperation.findMany({
+            where: { status: "pending", operationType: "menu.imported" },
+            orderBy: { occurredAt: "asc" },
+            take: SYNC_BATCH_SIZE,
+          });
+        const orderOperations = menuOperations.length < SYNC_BATCH_SIZE
+          ? await this.database.outboxOperation.findMany({
+              where: {
+                status: "pending",
+                operationType: { not: "menu.imported" },
+              },
+              orderBy: { occurredAt: "asc" },
+              take: SYNC_BATCH_SIZE - menuOperations.length,
+            })
+          : [];
+        const operations = [...menuOperations, ...orderOperations];
+        if (!operations.length && completedRequest && !pullMoreChanges) break;
+
+        const syncState = await this.database.syncState.findUniqueOrThrow({
+          where: { id: "primary" },
+        });
+        const response = await this.cloud.sync({
+          cursor: syncState.cursor,
+          operations: operations.map((operation) => ({
+            id: operation.id,
+            type: operation.operationType,
+            aggregateType: operation.aggregateType,
+            aggregateId: operation.aggregateId,
+            payload: JSON.parse(operation.payloadJson) as unknown,
+            actorMemberId: operation.actorMemberId,
+            terminalId: operation.terminalId,
+            permissionSnapshot: operation.permissionSnapshotToken,
+            occurredAt: operation.occurredAt,
+          })),
+        });
+        completedRequest = true;
+        pullMoreChanges =
+          response.changes.length === SYNC_CHANGE_PAGE_SIZE;
+        permanentErrorsFound ||= response.permanentErrors.length > 0;
+        await this.applySyncResponse(response);
+        const handledOperationIds = new Set([
+          ...response.acceptedOperationIds,
+          ...response.permanentErrors.map((error) => error.operationId),
+        ]);
+        if (
+          operations.some(
+            (operation) => !handledOperationIds.has(operation.id),
+          )
+        )
+          throw new PosError(
+            "SYNC_ERROR",
+            "The online service did not finish processing the sync batch.",
+          );
+        lastSyncAt = new Date().toISOString();
+        await this.database.syncState.update({
+          where: { id: syncState.id },
+          data: { cursor: response.cursor, lastSyncAt },
+        });
+        if (response.member)
+          await this.session.renewFromValidation(
+            response.member,
+            response.permissionSnapshot,
+          );
+        else
+          await this.session.renewFromValidation(await this.cloud.validate());
+
+        if (operations.length)
+          await this.update({
+            state: "syncing",
+            message: "Synchronizing saved changes…",
+          });
+      }
+
       await this.update({
-        state: degraded ? "degraded" : "online",
-        lastCheckedAt: now,
-        lastSyncAt: now,
-        message: degraded
+        state: permanentErrorsFound ? "degraded" : "online",
+        lastCheckedAt: lastSyncAt,
+        lastSyncAt,
+        message: permanentErrorsFound
           ? "Connected, but one or more changes need attention."
           : ONLINE_MESSAGE,
       });
@@ -199,7 +242,7 @@ export class ConnectivityService {
           state: "degraded",
           lastCheckedAt,
           message:
-            "You’re connected, but some changes could not sync. Review any pending import conflicts and try again.",
+            "You’re connected, but synchronization was interrupted. Your saved changes are safe and will retry automatically.",
         });
       } catch {
         await this.update({

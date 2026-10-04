@@ -99,6 +99,7 @@ export class CloudClient {
     name: string,
     body: Record<string, unknown>,
     authenticated = true,
+    timeout?: number,
   ): Promise<T> {
     const client = this.requireClient();
     if (
@@ -119,6 +120,7 @@ export class CloudClient {
     const { data, error } = await client.functions.invoke<T>(name, {
       body,
       headers,
+      timeout,
     });
     if (error) {
       const status = (error as { context?: { status?: number } }).context
@@ -246,11 +248,11 @@ export class CloudClient {
   }
 
   async sync(payload: Record<string, unknown>): Promise<SyncResponse> {
-    return this.invoke<SyncResponse>("sync", payload);
+    return this.invoke<SyncResponse>("sync", payload, true, 45_000);
   }
 
   async ping(): Promise<void> {
-    await this.invoke<{ ok: true }>("health", {}, false);
+    await this.invoke<{ ok: true }>("health", {}, false, 10_000);
   }
 
   async clearSession(): Promise<void> {
