@@ -1,0 +1,3 @@
+# Deno formatting is line-ending sensitive. Keep Edge Functions consistent on
+# macOS, Linux, and Windows GitHub Actions runners.
+supabase/functions/** text eol=lf
